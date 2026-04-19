@@ -20,12 +20,12 @@ HOSPITALS = [
 
 st.set_page_config(page_title="JUOG UTUC_Conlidative CRF", layout="wide")
 
-# デザイン調整 (CSS) - コンパクトかつ2カラムの統一感
+# デザイン調整 (CSS) - 2カラムで縦に間延びしないコンパクト設計
 st.markdown("""
     <style>
     .main { background-color: #F8FAFC; }
     .block-container { 
-        padding-top: 2rem !important; 
+        padding-top: 1.5rem !important; 
         max-width: 1000px !important; 
         margin: auto; 
         padding-bottom: 5rem !important; 
@@ -59,12 +59,12 @@ def send_result_email(content):
 
 st.title("JUOG UTUC_Conlidative 登録用CRF")
 
-# --- 1. 患者基本情報 (1-6) ---
+# --- 1. 患者基本情報 ---
 st.header("患者基本情報")
 c1, c2 = st.columns(2)
 with c1:
     facility = st.selectbox("施設名*", ["選択してください"] + HOSPITALS)
-    patient_id = st.text_input("症例ID（事務局用）")
+    patient_id = st.text_input("症例ID（事務局で割り当てます）")
     consent_date = st.date_input("同意取得日*", value=None)
     age = st.number_input("同意取得時の年齢*", min_value=0, max_value=120, value=None)
 with c2:
@@ -73,11 +73,11 @@ with c2:
     weight = st.number_input("体重 (kg)*", min_value=20.0, max_value=200.0, format="%.1f", value=None)
     ps = st.radio("ECOG PS*", ["0", "1", "2以上（不適）"], index=None, horizontal=True)
 
-# --- 2. 診断・原発巣情報 (7-9) ---
+# --- 2. 診断・原発巣情報 ---
 st.header("診断・原発巣情報")
 c3, c4 = st.columns(2)
 with c3:
-    diag_date = st.date_input("上部尿路上皮癌＿初回診断日：画像所見＋組織診/細胞診(疑いも含む)*", value=None)
+    diag_date = st.date_input("初回診断日：画像所見＋組織診/細胞診(疑いも含む)*", value=None)
     diag_type = st.multiselect("診断根拠となった検体*", ["組織診", "細胞診"])
     primary_site = st.radio("原発巣 部位*", ["腎盂", "尿管", "腎盂・尿管（両方）"], index=None, horizontal=True)
     primary_size_pre = st.number_input("診断時_最大径 (mm)*", format="%.1f", value=None)
@@ -86,7 +86,7 @@ with c4:
     cn = st.selectbox("診断時_cN*", ["選択してください", "cN0", "cN1", "cN2", "cN3"])
     cm = st.selectbox("診断時_cM*", ["選択してください", "cM0", "cM1"])
 
-# --- 3. 転移巣情報 (10-13, cM1のみ) ---
+# --- 3. 転移巣情報 (cM1のみ) ---
 m_pre_total, m_post_total = 0.0, 0.0
 site_1, size_1, m_post_v1 = "選択なし", None, None
 cned_date = None
@@ -118,7 +118,7 @@ if cm == "cM1":
         local_tx = st.selectbox("局所療法の種類*", ["選択してください", "放射線治療（外照射）", "放射線治療（定位照射）", "転移巣切除", "RFA・凍結療法など", "血管塞栓術：TACE/TAEなど", "その他"])
         cned_date = st.date_input("cNED確認日*", value=None)
 
-# --- 4. EVP治療情報 (14-19) ---
+# --- 4. EVP治療情報 ---
 st.header("EVP治療情報")
 ce1, ce2 = st.columns(2)
 with ce1:
@@ -134,7 +134,7 @@ with ce2:
     best_effect = st.selectbox("EVP 最良総合効果*", ["選択してください", "CR", "PR", "SD", "PD"])
     eval_date = st.date_input("EVP 病勢制御確認日 (SDの場合は、画像評価初回日)*", value=None)
 
-# --- 5. 手術前評価 & RECIST判定 (20-22) ---
+# --- 5. 手術前評価 & RECIST判定 ---
 st.header("手術前評価 & RECIST判定")
 cp1, cp2 = st.columns(2)
 with cp1:
@@ -158,7 +158,7 @@ with cp2:
         st.metric("長径和(SLD) 変化率", f"{sld_chg:.1f}%")
         st.markdown(f"手術前のRECIST判定 (自動判定): **{res_recist}**")
 
-# --- 6. 除外基準 & 手術予定 (23-25) ---
+# --- 6. 除外基準 & 手術予定 ---
 st.header("除外基準 & 手術予定")
 cx1, cx2 = st.columns(2)
 with cx1:
@@ -199,7 +199,7 @@ if st.button("適格性を判定する", type="primary", use_container_width=Tru
         else:
             st.error("登録対象外です。")
             for r in reasons: st.write(f"・{r}")
-        st.download_button("💾 控え(TXT)をダウンロード", st.session_state.report, file_name=f"CRF_{patient_id}.txt")
+        st.download_button("💾 控え(TXT)を保存", st.session_state.report, file_name=f"CRF_{patient_id}.txt")
         st.markdown('</div>', unsafe_allow_html=True)
 
 if "report" in st.session_state:
