@@ -29,7 +29,6 @@ st.markdown("""
         padding: 12px 20px !important; border-radius: 8px !important; margin-top: 35px !important; margin-bottom: 15px !important;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
-    /* マルチセレクト（組織診など）の赤色白抜きを防止 */
     span[data-baseweb="tag"] {
         background-color: #E2E8F0 !important;
         color: #1E293B !important;
@@ -73,17 +72,31 @@ with c5:
 m_pre_total = 0.0
 cm1_basis = "該当なし"
 cned_date = None
+site_1 = "選択なし"
+size_1 = None
+
 if cm == "cM1":
     st.header("転移巣情報 (cM1症例)")
     cm1_cols = st.columns(3)
     m_pre_list = []
-    for i, col in enumerate(cm1_cols, 1):
-        with col:
-            site = st.selectbox(f"部位{i}", ["肺", "骨", "肝", "リンパ節", "その他", "該当なし"], key=f"site_{i}")
+    
+    # 部位1 (入力必須)
+    with cm1_cols[0]:
+        site_1 = st.selectbox("部位1*", ["選択してください", "肺", "骨", "肝", "リンパ節", "その他"], key="site_1")
+        if site_1 == "その他":
+            st.text_input("部位1の詳細*", key="site_detail_1")
+        size_1 = st.number_input("大きさ1 (mm)*", format="%.1f", value=None, key="size_1")
+        m_pre_list.append(size_1 if size_1 is not None else 0.0)
+    
+    # 部位2 & 3 (任意)
+    for i in range(2, 4):
+        with cm1_cols[i-1]:
+            site = st.selectbox(f"部位{i}", ["該当なし", "肺", "骨", "肝", "リンパ節", "その他"], key=f"site_{i}")
             if site == "その他":
                 st.text_input(f"部位{i}の詳細", key=f"site_detail_{i}")
             v = st.number_input(f"大きさ{i} (mm)", format="%.1f", value=None, key=f"size_{i}")
             m_pre_list.append(v if v is not None else 0.0)
+            
     m_pre_total = sum(m_pre_list)
     
     cb1, cb2 = st.columns(2)
@@ -160,30 +173,31 @@ st.markdown("<br>", unsafe_allow_html=True)
 # --- 最終判定 ---
 if st.button("最終適格性を判定する", type="primary", use_container_width=True):
     reasons = []
-    # 必須入力チェック（手術予定日は除外）
+    # 基本必須チェック
     if any(v is None for v in [age, consent_date, diag_date, evp_start, eval_date, primary_size_pre, primary_size_post]):
         st.error("必須項目（*印）をすべて入力してください。")
     else:
-        # 日付バリデーション
-        if cm == "cM1" and cned_date:
-            if cned_date > (consent_date - timedelta(days=90)):
+        # cM1時の必須項目チェック
+        if cm == "cM1":
+            if site_1 == "選択してください" or size_1 is None:
+                reasons.append("転移巣の部位1およびその大きさは必須項目です")
+            if cned_date and cned_date > (consent_date - timedelta(days=90)):
                 reasons.append("cNED確認日は同意取得日より3ヶ月以上前である必要があります")
         
+        # 日付・医学的チェック
         if evp_start <= diag_date:
             reasons.append("EVP初回投与日は診断日より後の日付である必要があります")
-            
         if eval_date < (evp_start + timedelta(weeks=9)):
             reasons.append("病勢制御確認日はEVP開始から少なくとも9週間経過している必要があります")
-
-        # 適格性判定
         if age < 20: reasons.append("年齢20歳未満")
         if ps == "2以上（不適）": reasons.append("PS不良")
+        
         is_stage_iv = (ct == "cT4") or (cn not in ["選択なし", "cN0"]) or (cm == "cM1")
         if not is_stage_iv: reasons.append("Stage IV条件未充足")
         if cm == "cM1" and cm1_basis == "選択なし": reasons.append("cM1登録根拠が未選択です")
         if auto_recist == "PD" or best_effect == "PD": reasons.append("PD(病勢進行)のため対象外")
         if any(v == "あり（不適）" for v in [vessel, organ, ae_g3, other_cancer, pregnancy]):
-            reasons.append("除外基準に抵触")
+            reasons.append("除外基準に抵触しています")
 
         st.markdown("---")
         if not reasons:
