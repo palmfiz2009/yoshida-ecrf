@@ -18,16 +18,18 @@ HOSPITALS = [
 # ページ設定とカスタムCSS（デザイン調整）
 st.set_page_config(page_title="JUOG UTUC_Conlidative CRF", layout="wide")
 
+# CSSの修正: unsafe_allow_html=True が正しい引数です
 st.markdown("""
     <style>
     .reportview-container .main .block-container { padding-top: 2rem; }
-    h1 { font-size: 24px !important; color: #1E3A8A; margin-bottom: 30px; }
-    h2 { font-size: 18px !important; color: #374151; border-left: 5px solid #1E3A8A; padding-left: 10px; margin-top: 20px; }
+    h1 { font-size: 26px !important; color: #1E3A8A; margin-bottom: 30px; font-weight: bold; }
+    h2 { font-size: 18px !important; color: #374151; border-left: 5px solid #1E3A8A; padding-left: 10px; margin-top: 35px; margin-bottom: 15px; }
     .stNumberInput, .stTextInput, .stSelectbox, .stDateInput { margin-bottom: -10px; }
-    label { font-size: 14px !important; font-weight: 500 !important; }
-    div[data-testid="stForm"] { border: 1px solid #E5E7EB; padding: 30px; border-radius: 10px; }
+    label { font-size: 14px !important; font-weight: 500 !important; color: #4B5563; }
+    div[data-testid="stForm"] { border: 1px solid #E5E7EB; padding: 40px; border-radius: 12px; background-color: #FFFFFF; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    .stRadio > div { gap: 20px; }
     </style>
-    """, unsafe_allow_stdio=True)
+    """, unsafe_allow_html=True)
 
 st.title("JUOG UTUC_Conlidative 登録用CRF")
 
@@ -60,7 +62,7 @@ with st.form("main_form"):
         cn = st.selectbox("診断時_cN*", ["選択なし", "cN0", "cN1", "cN2", "cN3"])
         cm = st.selectbox("診断時_cM*", ["選択なし", "cM0", "cM1"])
 
-    # --- セクション3：転移巣情報 ---
+    # --- セクション3：転移巣情報 (cM1の時のみ表示) ---
     if cm == "cM1":
         st.header("転移巣情報 (cM1症例)")
         cols_met = st.columns(3)
@@ -71,8 +73,11 @@ with st.form("main_form"):
                 st.text_input(f"その他の場合：部位{i}", key=f"other{i}")
                 m_pre.append(st.number_input(f"大きさ{i} (mm)", format="%.1f", value=None, key=f"msize{i}"))
         
-        cm1_basis = st.selectbox("ｃM1症例 登録根拠*", ["選択なし", "EVP療法によりCR", "局所療法により画像上活動性の遠隔転移病変消失、かつ3か月以上維持", "該当なし"])
-        local_tx_type = st.selectbox("局所療法の種類*", ["選択なし", "放射線治療（外照射）", "放射線治療（定位照射）", "転移巣切除", "RFA・凍結療法など", "血管塞栓術", "その他", "該当なし"])
+        col_m_basis, col_m_tx = st.columns(2)
+        with col_m_basis:
+            cm1_basis = st.selectbox("ｃM1症例 登録根拠*", ["選択なし", "EVP療法によりCR", "局所療法により画像上活動性の遠隔転移病変消失、かつ3か月以上維持", "該当なし"])
+        with col_m_tx:
+            local_tx_type = st.selectbox("局所療法の種類*", ["選択なし", "放射線治療（外照射）", "放射線治療（定位照射）", "転移巣切除", "RFA・凍結療法など", "血管塞栓術", "その他", "該当なし"])
         cned_date = st.date_input("cNED確認日", value=None)
 
     # --- セクション4：EVP治療情報 ---
@@ -119,35 +124,25 @@ with st.form("main_form"):
         other_cancer = st.radio("活動性の重複がん*", ["なし", "あり（不適）"], horizontal=True)
         pregnancy = st.radio("妊娠・授乳・同意困難等*", ["なし", "あり（不適）"], horizontal=True)
     
-    op_type = st.selectbox("予定している手術*", ["選択なし", "根治的腎尿管全摘除術", "尿管部分切除術"])
-    op_date = st.date_input("手術予定日", value=None)
+    col16, col17 = st.columns(2)
+    with col16:
+        op_type = st.selectbox("予定している手術*", ["選択なし", "根治的腎尿管全摘除術", "尿管部分切除術"])
+    with col17:
+        op_date = st.date_input("手術予定日", value=None)
 
+    st.markdown("<br>", unsafe_allow_html=True)
     submit = st.form_submit_button("適格性を判定する")
 
 # --- 判定ロジック ---
 if submit:
     reasons = []
-    # 必須チェックの簡易化
+    # 必須数値項目のチェック
     if any(v is None for v in [age, primary_size_pre, primary_size_post]):
-        st.warning("必須数値項目を入力してください。")
+        st.warning("必須項目（*印）を入力してください。")
     else:
         if age < 20: reasons.append("年齢20歳未満")
         if ps == "2以上（不適）": reasons.append("PS不良")
-        is_stage_iv = (ct == "cT4") or (cn != "cN0") or (cm == "cM1")
-        if not is_stage_iv: reasons.append("Stage IV条件未充足")
-        if cm == "cM1" and (cm1_basis == "該当なし" or cm1_basis == "選択なし"): reasons.append("cM1登録根拠不足")
-        if best_effect == "PD" or recist_op == "PD（不適）": reasons.append("PD(病勢進行)")
-        if any(v == "あり（不適）" for v in [vessel_inv, organ_inv, ae_g3, other_cancer, pregnancy]):
-            reasons.append("除外基準に抵触")
-
-        # 計算
-        pri_red = ((primary_size_post - primary_size_pre) / primary_size_pre * 100)
         
-        st.markdown("---")
-        if not reasons:
-            st.success(f"⭕ 適格 (Eligible) / 原発巣縮小率: {pri_red:.1f}%")
-            st.balloons()
-        else:
-            st.error("❌ 不適格 (Ineligible)")
-            for r in reasons:
-                st.write(f"- {r}")
+        # Stage IV判定 (T4 or N+ or M1)
+        is_stage_iv = (ct == "cT4") or (cn not in ["選択なし", "cN0"]) or (cm == "cM1")
+        if not is_stage_iv: reasons.
