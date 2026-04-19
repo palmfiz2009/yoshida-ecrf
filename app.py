@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # 施設リスト
 HOSPITALS = [
@@ -22,19 +22,20 @@ st.set_page_config(page_title="JUOG UTUC_Conlidative CRF", layout="wide")
 st.markdown("""
     <style>
     .main { background-color: #F8FAFC; }
-    .block-container { padding-top: 2rem; max-width: 950px; margin: auto; }
+    .block-container { padding-top: 2rem; max-width: 1000px; margin: auto; }
     h1 { font-size: 26px !important; color: #0F172A; text-align: center; margin-bottom: 30px; font-weight: 800; }
-    
-    /* 全ヘッダーを青背景・白文字に統一 */
     h2 { 
         font-size: 17px !important; color: #FFFFFF !important; background-color: #1E3A8A !important; 
         padding: 12px 20px !important; border-radius: 8px !important; margin-top: 35px !important; margin-bottom: 15px !important;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
-    
+    /* 選択項目のタグの色を調整（赤の白抜きを防止） */
+    span[data-baseweb="tag"] {
+        background-color: #E2E8F0 !important;
+        color: #1E293B !important;
+    }
     label { font-size: 14px !important; font-weight: 600 !important; color: #334155; }
     .stMetric { background-color: #FFFFFF; padding: 20px; border-radius: 12px; border: 1px solid #E2E8F0; }
-    div[data-testid="column"] { padding: 0 15px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -71,6 +72,7 @@ with c5:
 # --- 3. 転移巣情報 (cM1のみ) ---
 m_pre_total = 0.0
 cm1_basis = "該当なし"
+cned_date = None
 if cm == "cM1":
     st.header("転移巣情報 (cM1症例)")
     cm1_c1, cm1_c2, cm1_c3 = st.columns(3)
@@ -84,12 +86,13 @@ if cm == "cM1":
     
     cb1, cb2 = st.columns(2)
     with cb1:
-        cm1_basis = st.selectbox("ｃM1症例 登録根拠*", ["選択なし", "EVP療法によりCR", "局所療法により消失、3か月維持", "該当なし"])
+        # 「該当なし」を削除
+        cm1_basis = st.selectbox("ｃM1症例 登録根拠*", ["選択なし", "EVP療法によりCR", "局所療法により画像上活動性の遠隔転移病変消失、かつ3か月以上維持"])
     with cb2:
         local_tx = st.selectbox("局所療法の種類*", ["選択なし", "放射線", "手術", "RFA", "その他"])
-    cned_date = st.date_input("cNED確認日", value=None)
+    cned_date = st.date_input("cNED確認日*", value=None)
 
-# --- 4. EVP治療情報 (復活版) ---
+# --- 4. EVP治療情報 ---
 st.header("EVP治療情報")
 ce1, ce2 = st.columns(2)
 with ce1:
@@ -102,7 +105,7 @@ with ce2:
     courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
     courses_reason = st.text_input("3コース未満の場合：理由")
     reduction = st.radio("EVP 減量の有無*", ["なし", "あり"], horizontal=True)
-    reduction_detail = st.text_area("減量の詳細", height=100)
+    reduction_detail = st.text_area("減量の詳細", height=68)
     eval_date = st.date_input("EVP 病勢制御確認日 (画像検査日)*", value=None)
     sd_date = st.text_input("SDの場合は、投与後画像評価初回日")
 
@@ -121,7 +124,6 @@ with cp1:
         m_post_total = sum(m_post_list)
 
 with cp2:
-    # リアルタイム判定
     auto_recist = "未入力"
     sld_change = 0.0
     if primary_size_pre and primary_size_post is not None:
@@ -133,11 +135,9 @@ with cp2:
         elif sld_change >= 20: auto_recist = "PD"
         else: auto_recist = "SD"
         
-        st.write("### リアルタイム評価結果")
+        st.write("### 評価結果（リアルタイム）")
         st.metric("長径和(SLD) 変化率", f"{sld_change:.1f}%")
-        st.markdown(f"判定: **{auto_recist}**")
-    else:
-        st.info("サイズを入力すると判定が計算されます")
+        st.markdown(f"総合RECIST判定: **{auto_recist}**")
 
 # --- 6. 除外基準 & 手術予定 ---
 st.header("除外基準 & 手術予定")
@@ -150,25 +150,36 @@ with cx2:
     other_cancer = st.radio("活動性の重複がん*", ["なし", "あり（不適）"], horizontal=True)
     pregnancy = st.radio("妊娠・授乳・同意困難等*", ["なし", "あり（不適）"], horizontal=True)
     op_type = st.selectbox("予定している手術*", ["選択なし", "根治的腎尿管全摘除術", "尿管部分切除術"])
+    op_date = st.date_input("手術予定日*", value=None)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- 判定ボタン ---
+# --- 最終判定 ---
 if st.button("最終適格性を判定する", type="primary", use_container_width=True):
-    missing = []
-    if age is None: missing.append("年齢")
-    if primary_size_pre is None: missing.append("診断時サイズ")
-    if primary_size_post is None: missing.append("手術前サイズ")
-    
-    if missing:
-        st.error(f"以下の必須項目を入力してください: {', '.join(missing)}")
+    reasons = []
+    # 必須入力チェック
+    if any(v is None for v in [age, consent_date, diag_date, evp_start, eval_date, primary_size_pre, primary_size_post]):
+        st.error("必須項目（*印）をすべて入力してください。")
     else:
-        reasons = []
+        # 日付バリデーション
+        if cm == "cM1" and cned_date:
+            three_months_ago = consent_date - timedelta(days=90)
+            if cned_date > three_months_ago:
+                reasons.append("cNED確認日は同意取得日より3ヶ月以上前でなければなりません")
+        
+        if evp_start <= diag_date:
+            reasons.append("EVP初回投与日は診断日より後の日付である必要があります")
+            
+        nine_weeks_after = evp_start + timedelta(weeks=9)
+        if eval_date < nine_weeks_after:
+            reasons.append("病勢制御確認はEVP開始から少なくとも9週間（3コース相当）経過している必要があります")
+
+        # 医学的ロジック
         if age < 20: reasons.append("年齢20歳未満")
         if ps == "2以上（不適）": reasons.append("PS不良")
         is_stage_iv = (ct == "cT4") or (cn not in ["選択なし", "cN0"]) or (cm == "cM1")
         if not is_stage_iv: reasons.append("Stage IV条件未充足")
-        if cm == "cM1" and cm1_basis in ["該当なし", "選択なし"]: reasons.append("cM1登録根拠不足")
+        if cm == "cM1" and cm1_basis == "選択なし": reasons.append("cM1登録根拠が未選択です")
         if auto_recist == "PD" or best_effect == "PD": reasons.append("PD(病勢進行)のため対象外")
         if any(v == "あり（不適）" for v in [vessel, organ, ae_g3, other_cancer, pregnancy]):
             reasons.append("除外基準に抵触")
