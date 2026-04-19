@@ -20,7 +20,7 @@ HOSPITALS = [
 
 st.set_page_config(page_title="JUOG UTUC_Conlidative CRF", layout="wide")
 
-# デザイン調整
+# デザイン調整 (CSS)
 st.markdown("""
     <style>
     .main { background-color: #F8FAFC; }
@@ -49,12 +49,19 @@ def send_result_email(content):
 
 st.title("JUOG UTUC_Conlidative 登録用CRF")
 
-# --- 1. 患者基本情報 (1-6) ---
+# --- 初期値設定（エラー防止用） ---
+m_pre_total = 0.0
+m_post_total = 0.0
+size_1, size_2, size_3 = 0.0, 0.0, 0.0
+mp1, mp2, mp3 = 0.0, 0.0, 0.0
+cned_date = None
+
+# --- 1. 患者基本情報 ---
 st.header("1. 患者基本情報")
 c1, c2 = st.columns(2)
 with c1:
     facility = st.selectbox("施設名*", ["選択してください"] + HOSPITALS)
-    patient_id = st.text_input("症例ID（事務局で割り当てます）")
+    patient_id = st.text_input("症例ID（事務局用）")
     consent_date = st.date_input("同意取得日*", value=None)
     age = st.number_input("同意取得時の年齢*", min_value=0, max_value=120, value=None)
 with c2:
@@ -63,7 +70,7 @@ with c2:
     weight = st.number_input("体重 (kg)*", min_value=20.0, format="%.1f", value=None)
     ps = st.radio("ECOG PS*", ["0", "1", "2以上（不適）"], index=None, horizontal=True)
 
-# --- 2. 診断・原発巣情報 (7-9) ---
+# --- 2. 診断・原発巣情報 ---
 st.header("2. 診断・原発巣情報")
 c3, c4 = st.columns(2)
 with c3:
@@ -76,35 +83,33 @@ with c4:
     cn = st.selectbox("診断時_cN*", ["選択してください", "cN0", "cN1", "cN2", "cN3"])
     cm = st.selectbox("診断時_cM*", ["選択してください", "cM0", "cM1"])
 
-# --- 3. 転移巣情報 (10-13, cM1のみ) ---
-m_pre_total, m_post_total = 0.0, 0.0
-site_1, size_1, site_2, size_2, site_3, size_3 = "選択なし", 0.0, "選択なし", 0.0, "選択なし", 0.0
-cned_date, cm1_basis, local_tx = None, "なし", "なし"
-
+# --- 3. 転移巣情報 (cM1症例のみ表示) ---
 if cm == "cM1":
-    st.header("3. 転移巣情報 (cM1症例)")
+    st.header("3. 転移巣情報 (cM1症例のみ)")
     mc1, mc2 = st.columns(2)
     with mc1:
-        site_1 = st.selectbox("転移巣 部位①*", ["選択してください", "肺", "骨", "肝", "リンパ節", "その他"], key="s1")
-        if site_1 == "その他": st.text_input("部位① 詳細", key="sd1")
-        size_1 = st.number_input("大きさ① (診断時 mm)*", format="%.1f", value=0.0, key="sz1")
+        s1 = st.selectbox("転移巣 部位①*", ["選択してください", "肺", "骨", "肝", "リンパ節", "その他"])
+        if s1 == "その他": st.text_input("部位① 詳細")
+        size_1 = st.number_input("大きさ① (診断時 mm)*", format="%.1f", value=0.0)
         
-        site_2 = st.selectbox("転移巣 部位②", ["該当なし", "肺", "骨", "肝", "リンパ節", "その他"], key="s2")
-        if site_2 == "その他": st.text_input("部位② 詳細", key="sd2")
-        size_2 = st.number_input("大きさ② (mm)", format="%.1f", value=0.0, key="sz2")
+        s2 = st.selectbox("転移巣 部位②", ["該当なし", "肺", "骨", "肝", "リンパ節", "その他"])
+        if s2 == "その他": st.text_input("部位② 詳細")
+        size_2 = st.number_input("大きさ② (mm)", format="%.1f", value=0.0)
 
-        site_3 = st.selectbox("転移巣 部位③", ["該当なし", "肺", "骨", "肝", "リンパ節", "その他"], key="s3")
-        if site_3 == "その他": st.text_input("部位③ 詳細", key="sd3")
-        size_3 = st.number_input("大きさ③ (mm)", format="%.1f", value=0.0, key="sz3")
-        m_pre_total = size_1 + size_2 + size_3
+        s3 = st.selectbox("転移巣 部位③", ["該当なし", "肺", "骨", "肝", "リンパ節", "その他"])
+        if s3 == "その他": st.text_input("部位③ 詳細")
+        size_3 = st.number_input("大きさ③ (mm)", format="%.1f", value=0.0)
+        
+        # 安全な足し算
+        m_pre_total = (size_1 or 0.0) + (size_2 or 0.0) + (size_3 or 0.0)
         st.info(f"転移巣 診断時_腫瘍径 合計: {m_pre_total:.1f} mm")
 
     with mc2:
         cm1_basis = st.selectbox("ｃM1症例 登録根拠*", ["選択してください", "EVP療法によりCR", "局所療法により消失、3か月維持"])
-        local_tx = st.selectbox("局所療法の種類*", ["選択してください", "放射線治療（外照射）", "放射線治療（定位照射）", "転移巣切除", "RFA・凍結療法など", "血管塞栓術：TACE/TAEなど", "その他", "該当なし"])
+        local_tx = st.selectbox("局所療法の種類*", ["選択してください", "放射線（外照射）", "放射線（定位）", "転移巣切除", "RFA・凍結など", "血管塞栓術", "その他", "該当なし"])
         cned_date = st.date_input("cNED確認日*", value=None)
 
-# --- 4. EVP治療情報 (14-19) ---
+# --- 4. EVP治療情報 ---
 st.header("4. EVP治療情報")
 ce1, ce2 = st.columns(2)
 with ce1:
@@ -113,34 +118,36 @@ with ce1:
     ev_dose = st.number_input("EV 初回量 (mg/kg)*", format="%.2f", value=None)
     pembro_dose = st.number_input("Pembro 初回量 (mg/kg)*", format="%.2f", value=None)
     reduction = st.radio("EVP 減量の有無*", ["なし", "あり"], index=None, horizontal=True)
-    if reduction == "あり": red_det = st.text_area("減量の詳細")
+    if reduction == "あり": st.text_area("減量の詳細")
 with ce2:
     courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
     courses_reason = st.text_input("3コース未満の場合：理由")
     best_effect = st.selectbox("EVP 最良総合効果*", ["選択してください", "CR", "PR", "SD", "PD"])
     eval_date = st.date_input("病勢制御確認日 (SDの場合は画像初回日)*", value=None)
 
-# --- 5. 手術前評価 & RECIST (20-22) ---
+# --- 5. 手術前評価 & RECIST判定 ---
 st.header("5. 手術前評価 & RECIST判定")
 cp1, cp2 = st.columns(2)
 with cp1:
     primary_size_post = st.number_input("原発巣 手術前_最大径 (mm)*", format="%.1f", value=None)
     if cm == "cM1":
-        st.markdown("**転移巣 手術前_大きさ**")
-        mp1 = st.number_input("転移巣① 手術前 (mm)*", format="%.1f", value=0.0, key="mp1")
-        mp2 = st.number_input("転移巣② 手術前 (mm)", format="%.1f", value=0.0, key="mp2")
-        mp3 = st.number_input("転移巣③ 手術前 (mm)", format="%.1f", value=0.0, key="mp3")
-        m_post_total = mp1 + mp2 + mp3
+        st.write("転移巣 手術前_大きさ")
+        mp1 = st.number_input("転移巣① 手術前 (mm)*", format="%.1f", value=0.0)
+        mp2 = st.number_input("転移巣② 手術前 (mm)", format="%.1f", value=0.0)
+        mp3 = st.number_input("転移巣③ 手術前 (mm)", format="%.1f", value=0.0)
+        m_post_total = (mp1 or 0.0) + (mp2 or 0.0) + (mp3 or 0.0)
 with cp2:
     res_recist, sld_chg = "未入力", 0.0
-    if primary_size_pre and primary_size_post is not None:
-        sld_pre, sld_post = (primary_size_pre + m_pre_total), (primary_size_post + m_post_total)
-        sld_chg = ((sld_post - sld_pre) / sld_pre * 100) if sld_pre > 0 else 0
-        res_recist = "PD" if sld_chg >= 20 else "PR" if sld_chg <= -30 else "CR" if sld_post == 0 else "SD"
+    # 計算エラー防止ロジック
+    pre_sum = (primary_size_pre or 0.0) + m_pre_total
+    post_sum = (primary_size_post or 0.0) + m_post_total
+    if pre_sum > 0:
+        sld_chg = ((post_sum - pre_sum) / pre_sum * 100)
+        res_recist = "PD" if sld_chg >= 20 else "PR" if sld_chg <= -30 else "CR" if post_sum == 0 else "SD"
         st.metric("SLD 変化率", f"{sld_chg:.1f}%")
-        st.markdown(f"判定: **{res_recist}**")
+        st.markdown(f"RECIST判定 (自動): **{res_recist}**")
 
-# --- 6. 除外基準 & 手術予定 (23-25) ---
+# --- 6. 除外基準 & 手術予定 ---
 st.header("6. 除外基準 & 手術予定")
 cx1, cx2 = st.columns(2)
 with cx1:
@@ -151,33 +158,40 @@ with cx2:
     other_cancer = st.radio("活動性の重複がん*", ["なし", "あり（不適）"], index=None, horizontal=True)
     pregnancy = st.radio("妊娠・授乳・同意困難等*", ["なし", "あり（不適）"], index=None, horizontal=True)
     op_type = st.selectbox("予定している手術*", ["選択なし", "根治的腎尿管全摘除術", "尿管部分切除術"])
-    op_date = st.date_input("手術予定日", value=None)
+    op_date = st.date_input("手術予定日（任意）", value=None)
 
-# --- 判定 & レポート ---
+# --- 判定 & 報告 ---
 if st.button("適格性を判定する", type="primary", use_container_width=True):
-    reasons = []
-    if any(v is None for v in [age, gender, height, weight, consent_date, diag_date, evp_start, eval_date, primary_size_pre, primary_size_post]): reasons.append("必須項目の未入力")
-    if cm == "cM1" and cned_date and cned_date > (consent_date - timedelta(days=90)): reasons.append("cNED 3ヶ月ルール不備")
-    if res_recist == "PD" or best_effect == "PD": reasons.append("PD(病勢進行)")
-    if any(v == "あり（不適）" for v in [vessel, organ, ae, other_cancer, pregnancy]): reasons.append("除外基準抵触")
+    missing = []
+    if any(v is None for v in [age, gender, height, weight, consent_date, diag_date, evp_start, eval_date, primary_size_pre, primary_size_post]): missing.append("必須項目の未入力")
+    if cm == "cM1" and (s1 == "選択してください" or size_1 == 0.0): missing.append("転移巣情報")
     
-    res_final = "【適格】" if not reasons else "【不適格】"
-    report_text = f"施設: {facility}\nID: {patient_id}\n結果: {res_final}\nRECIST: {res_recist}\n理由: {', '.join(reasons) if reasons else 'なし'}"
-    st.session_state.report = report_text
-    
-    html_report = f"<html><body style='font-family:sans-serif;'><h2>JUOG eCRF レポート</h2><p>施設: {facility}</p><p>ID: {patient_id}</p><p>判定: {res_final}</p><p>RECIST: {res_recist} ({sld_chg:.1f}%)</p><p>不適格理由: {', '.join(reasons) if reasons else 'なし'}</p><hr><p>発行日: {datetime.now().strftime('%Y-%m-%d')}</p></body></html>"
-    
-    st.markdown(f'<div class="result-section"><h3>判定結果: {res_final}</h3>', unsafe_allow_html=True)
-    if not reasons: st.success("登録可能です。"); st.balloons()
-    else: st.error("登録対象外です。"); [st.write(f"・{r}") for r in reasons]
-    
-    c_dl1, c_dl2 = st.columns(2)
-    with c_dl1: st.download_button("📄 印刷用レポート保存(HTML)", html_report, file_name=f"Report_{patient_id}.html", mime="text/html")
-    with c_dl2: st.download_button("💾 控え(TXT)保存", report_text, file_name=f"Report_{patient_id}.txt")
-    st.markdown('</div>', unsafe_allow_html=True)
+    if missing:
+        st.error(f"入力漏れがあります: {', '.join(missing)}")
+    else:
+        reasons = []
+        if cm == "cM1" and cned_date and cned_date > (consent_date - timedelta(days=90)): reasons.append("cNED 3ヶ月ルール")
+        if eval_date < (evp_start + timedelta(weeks=9)): reasons.append("評価時期不足(9週間)")
+        if res_recist == "PD" or best_effect == "PD": reasons.append("PD(病勢進行)")
+        if any(v == "あり（不適）" for v in [vessel, organ, ae, other_cancer, pregnancy]): reasons.append("除外基準抵触")
+        
+        res_final = "【適格】" if not reasons else "【不適格】"
+        report = f"施設: {facility}\nID: {patient_id}\n判定: {res_final}\nRECIST: {res_recist}\n理由: {', '.join(reasons) if reasons else 'なし'}"
+        st.session_state.report = report
+        
+        html_report = f"<html><body><h3>JUOG eCRF レポート</h3><p>施設: {facility}<br>ID: {patient_id}<br>判定: {res_final}<br>RECIST: {res_recist}<br>不適格理由: {', '.join(reasons) if reasons else 'なし'}</p></body></html>"
+        
+        st.markdown(f'<div class="result-section"><h3>判定結果: {res_final}</h3>', unsafe_allow_html=True)
+        if not reasons: st.success("登録可能です。"); st.balloons()
+        else: st.error("登録対象外です。")
+        
+        c_dl1, c_dl2 = st.columns(2)
+        with c_dl1: st.download_button("📄 印刷用レポート(HTML)保存", html_report, file_name=f"Report_{patient_id}.html", mime="text/html")
+        with c_dl2: st.download_button("💾 控え(TXT)保存", report, file_name=f"Report_{patient_id}.txt")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 if "report" in st.session_state:
     if st.button("✉️ 事務局へ結果を送信する", use_container_width=True):
         if send_result_email(st.session_state.report):
             st.success("送信完了しました！"); del st.session_state.report
-        else: st.error("送信エラー")
+        else: st.error("送信エラー：Secretsの設定を確認してください")
