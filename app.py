@@ -5,11 +5,11 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # 施設リスト（計画書記載の全施設）
-HOSPITALS = ["愛知県がんセンター", "秋田大学", "愛媛大学", "大分大学", "大阪公立大学", "大阪大学", "大阪府済生会野江病院", "岡山大学病院", "香川大学", "鹿児島大学", "関西医科大学", "岐阜大学医学部附属病院", "九州大学病院", "京都大学", "久留米大学", "神戸大学", "国立がん研究センター中央病院", "国立病院機構四国がんセンター", "札幌医科大学", "千葉大学", "筑波大学", "東京科学大学", "東京慈恵会医科大学附属柏病院", "東京慈恵会医科大学附属病院", "東北大学", "鳥取大学", "富山大学附属病院", "長崎大学病院", "名古屋大学", "奈良県立医科大学", "新潟大学大学院 医歯学総合研究科", "浜松医科大学", "原三信病院", "兵庫医科大学", "弘前大学医学部附属病院", "北海道大学", "三重大学", "横浜市立大学附属病院", "琉球大学病院", "和歌山県立医科大学"]
+HOSPITALS = ["愛知県がんセンター", "秋田大学", "愛媛大学", "大分大学", "大阪公立大学", "大阪大学", "大阪府済生会野江病院", "岡山大学病院", "香川大学", "鹿児島大学", "関西医科大学", "岐阜大学医学部附属病院", "九州大学病院", "京都大学", "久留米大学", "神戸大学", "国立がん研究センター中央病院", "国立病院機構四国がんセンター", "札幌医科大学", "千葉大学", "筑波大学", "東京科学大学", "東京慈恵会医科大学附属柏病院", "東京慈恵会医科大学附属病院", "東北大学", "鳥取大学", "富山大学附属病院", "長崎大学病院", "名古屋大学", "奈良県立医科大学", "新潟大学大学院 医歯学総合研究科", "浜松医科大学", "原三信病院", "兵庫医科大学", "弘前大学医学部附属病院", "北海道大学", "三重大学", "三重大学", "横浜市立大学附属病院", "琉球大学病院", "和歌山県立医科大学"]
 
 st.set_page_config(page_title="JUOG UTUC_Conlidative CRF", layout="wide")
 
-# デザイン調整 (CSS) - 先生お気に入りの2カラム・コンパクト版
+# デザイン調整 (CSS)
 st.markdown("""
     <style>
     .main { background-color: #F8FAFC; }
@@ -111,7 +111,7 @@ with ce2:
     best_effect = st.selectbox("EVP 最良総合効果*", ["選択してください", "CR", "PR", "SD", "PD"])
     eval_date = st.date_input("病勢制御確認日 (SDの場合は画像初回日)*", value=None)
 
-# --- 5. 手術前評価 ---
+# --- 5. 手術前評価 & RECIST判定 ---
 st.header("5. 手術前評価 & RECIST判定")
 cp1, cp2 = st.columns(2)
 with cp1:
@@ -131,7 +131,7 @@ with cp2:
         st.metric("SLD 変化率", f"{sld_chg:.1f}%")
         st.markdown(f"RECIST判定: **{res_recist}**")
 
-# --- 6. 除外基準 ---
+# --- 6. 除外基準 & 手術予定 ---
 st.header("6. 除外基準 & 手術予定")
 cx1, cx2 = st.columns(2)
 with cx1:
@@ -167,7 +167,8 @@ if st.button("適格性を判定する", type="primary", use_container_width=Tru
         else: st.error("登録対象外です。"); [st.write(f"・{r}") for r in reasons]
         
         c_dl1, c_dl2 = st.columns(2)
-        with c_dl1: st.download_button("📄 印刷用レポート(HTML)保存", f"<html><body><h3>JUOG レポート</h3><p>施設: {facility}<br>ID: {patient_id}<br>判定: {res_final}</p></body></html>", file_name=f"Report_{patient_id}.html", mime="text/html")
+        html_content = f"<html><body><h3>JUOG レポート</h3><p>施設: {facility}<br>ID: {patient_id}<br>判定: {res_final}<br>RECIST: {res_recist}<br>理由: {', '.join(reasons) if reasons else 'なし'}</p></body></html>"
+        with c_dl1: st.download_button("📄 印刷用レポート(HTML)保存", html_content, file_name=f"Report_{patient_id}.html", mime="text/html")
         with c_dl2: st.download_button("💾 控え(TXT)保存", report, file_name=f"Report_{patient_id}.txt")
         st.markdown('</div>', unsafe_allow_html=True)
 
