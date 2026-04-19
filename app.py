@@ -18,21 +18,25 @@ HOSPITALS = [
 # ページ設定
 st.set_page_config(page_title="JUOG UTUC_Conlidative CRF", layout="wide")
 
-# デザイン調整 (CSS)
+# デザイン調整 (CSS) - 余白を詰め、フォントサイズを最適化
 st.markdown("""
     <style>
-    .reportview-container .main .block-container { padding-top: 2rem; }
-    h1 { font-size: 26px !important; color: #1E3A8A; margin-bottom: 30px; font-weight: bold; text-align: center; }
-    h2 { font-size: 18px !important; color: #1E3A8A; border-bottom: 2px solid #E5E7EB; padding-bottom: 10px; margin-top: 40px; margin-bottom: 20px; }
-    .stNumberInput, .stTextInput, .stSelectbox, .stDateInput { margin-bottom: 5px; }
-    label { font-size: 14px !important; font-weight: 600 !important; color: #374151; }
-    div[data-testid="stForm"] { border: 1px solid #D1D5DB; padding: 40px; border-radius: 15px; background-color: #F9FAFB; }
+    .main { background-color: #F3F4F6; }
+    .block-container { padding-top: 1.5rem; max-width: 1000px; }
+    h1 { font-size: 24px !important; color: #111827; text-align: center; margin-bottom: 20px; }
+    h2 { font-size: 16px !important; color: #FFFFFF; background-color: #1E3A8A; padding: 8px 15px; border-radius: 5px; margin-top: 25px; margin-bottom: 15px; }
+    .stNumberInput, .stTextInput, .stSelectbox, .stDateInput { margin-bottom: -5px; }
+    label { font-size: 13px !important; font-weight: 600 !important; color: #374151; }
+    .css-1offfwp { gap: 1rem; } /* Column gap */
+    div[data-testid="column"] { padding: 0 10px; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("JUOG UTUC_Conlidative 登録用CRF")
 
-with st.form("main_form"):
+# 全体を白背景のボックスで囲む演出
+container = st.container()
+with container:
     # --- セクション1：基本情報 ---
     st.header("患者基本情報")
     col1, col2, col3 = st.columns(3)
@@ -61,17 +65,18 @@ with st.form("main_form"):
         cn = st.selectbox("診断時_cN*", ["選択なし", "cN0", "cN1", "cN2", "cN3"])
         cm = st.selectbox("診断時_cM*", ["選択なし", "cM0", "cM1"])
 
-    # --- セクション3：転移巣情報 (cM1の時のみ表示) ---
+    # --- セクション3：転移巣情報 (cM1の時のみリアルタイムに表示) ---
+    m_pre_list = [0.0, 0.0, 0.0]
+    cm1_basis = "該当なし"
     if cm == "cM1":
         st.header("転移巣情報 (cM1症例)")
         cols_met = st.columns(3)
-        m_pre_list = []
         for i in range(1, 4):
             with cols_met[i-1]:
                 st.selectbox(f"部位{i}", ["肺", "骨", "肝", "リンパ節", "その他", "該当なし"], key=f"site{i}")
                 st.text_input(f"その他の場合：部位{i}", key=f"other{i}")
                 m_pre_val = st.number_input(f"大きさ{i} (mm)", format="%.1f", value=None, key=f"msize{i}")
-                m_pre_list.append(m_pre_val if m_pre_val is not None else 0.0)
+                m_pre_list[i-1] = m_pre_val if m_pre_val is not None else 0.0
         
         col_m_basis, col_m_tx = st.columns(2)
         with col_m_basis:
@@ -92,7 +97,7 @@ with st.form("main_form"):
         courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
         courses_reason = st.text_input("3コース未満の場合：理由")
         reduction = st.radio("EVP 減量の有無*", ["なし", "あり"], horizontal=True)
-        reduction_detail = st.text_area("減量の詳細")
+        reduction_detail = st.text_area("減量の詳細", height=68)
 
     col_eval1, col_eval2 = st.columns(2)
     with col_eval1:
@@ -108,10 +113,11 @@ with st.form("main_form"):
     with col_preop1:
         primary_size_post = st.number_input("原発巣 手術前_最大径 (mm)*", format="%.1f", value=None)
     with col_preop2:
+        m_post_list = [0.0, 0.0, 0.0]
         if cm == "cM1":
-            m_post1 = st.number_input("転移巣① 手術前 (mm)", format="%.1f", value=None)
-            m_post2 = st.number_input("転移巣② 手術前 (mm)", format="%.1f", value=None)
-            m_post3 = st.number_input("転移巣③ 手術前 (mm)", format="%.1f", value=None)
+            for i in range(1, 4):
+                m_post_val = st.number_input(f"転移巣{chr(9311+i)} 手術前 (mm)", format="%.1f", value=None, key=f"mpost{i}")
+                m_post_list[i-1] = m_post_val if m_post_val is not None else 0.0
 
     # --- セクション6：除外基準・手術予定 ---
     st.header("除外基準 & 手術予定")
@@ -131,43 +137,28 @@ with st.form("main_form"):
         op_date = st.date_input("手術予定日", value=None)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    submit = st.form_submit_button("適格性を判定する")
-
-# --- 判定ロジック ---
-if submit:
-    reasons = []
-    # 必須チェック
-    if age is None or primary_size_pre is None or primary_size_post is None:
-        st.warning("必須数値項目（*印）を入力してください。")
-    else:
-        if age < 20: 
-            reasons.append("年齢が20歳未満です。")
-        if ps == "2以上（不適）": 
-            reasons.append("ECOG PSが不適格（2以上）です。")
-        
-        # Stage IV判定 (T4, N+, M1のいずれか)
-        is_stage_iv = (ct == "cT4") or (cn not in ["選択なし", "cN0"]) or (cm == "cM1")
-        if not is_stage_iv: 
-            reasons.append("Stage IV条件（cT4, cN+, cM1のいずれか）を満たしていません。")
-        
-        if cm == "cM1" and (cm1_basis in ["該当なし", "選択なし"]):
-            reasons.append("cM1症例ですが、適切な登録根拠が選択されていません。")
-            
-        if best_effect == "PD" or recist_op == "PD（不適）":
-            reasons.append("病勢進行（PD）のため対象外です。")
-            
-        if any(v == "あり（不適）" for v in [vessel_inv, organ_inv, ae_g3, other_cancer, pregnancy]):
-            reasons.append("除外基準（浸潤、AE、重複癌等）に該当します。")
-
-        # 計算
-        pri_red = ((primary_size_post - primary_size_pre) / primary_size_pre * 100)
-        
-        st.markdown("---")
-        st.subheader("判定結果")
-        if not reasons:
-            st.success(f"⭕ 適格 (Eligible) / 原発巣縮小率: {pri_red:.1f}%")
-            st.balloons()
+    
+    # 判定ボタン
+    if st.button("適格性を判定する", type="primary"):
+        reasons = []
+        if age is None or primary_size_pre is None or primary_size_post is None:
+            st.warning("必須数値項目（*印）を入力してください。")
         else:
-            st.error("❌ 不適格 (Ineligible)")
-            for r in reasons:
-                st.write(f"- {r}")
+            if age < 20: reasons.append("年齢20歳未満")
+            if ps == "2以上（不適）": reasons.append("PS不良")
+            is_stage_iv = (ct == "cT4") or (cn not in ["選択なし", "cN0"]) or (cm == "cM1")
+            if not is_stage_iv: reasons.append("Stage IV条件未充足")
+            if cm == "cM1" and cm1_basis in ["該当なし", "選択なし"]: reasons.append("cM1登録根拠不足")
+            if best_effect == "PD" or recist_op == "PD（不適）": reasons.append("PD(病勢進行)")
+            if any(v == "あり（不適）" for v in [vessel_inv, organ_inv, ae_g3, other_cancer, pregnancy]):
+                reasons.append("除外基準に抵触")
+
+            pri_red = ((primary_size_post - primary_size_pre) / primary_size_pre * 100)
+            
+            st.markdown("---")
+            if not reasons:
+                st.success(f"⭕ 適格 (Eligible) / 原発巣縮小率: {pri_red:.1f}%")
+                st.balloons()
+            else:
+                st.error("❌ 不適格 (Ineligible)")
+                for r in reasons: st.write(f"- {r}")
