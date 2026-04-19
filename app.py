@@ -71,21 +71,27 @@ with c4:
     cn = st.selectbox("診断時_cN*", ["選択してください", "cN0", "cN1", "cN2", "cN3"])
     cm = st.selectbox("診断時_cM*", ["選択してください", "cM0", "cM1"])
 
-# --- 3. 転移巣情報 (cM1のみ表示) ---
+# --- 3. 転移巣情報 (cM1症例のみ表示) ---
 if cm == "cM1":
     st.header("3. 転移巣情報 (cM1症例のみ)")
     mc1, mc2 = st.columns(2)
     with mc1:
-        st.selectbox("転移巣 部位①*", ["肺", "骨", "肝", "リンパ節", "その他"], key="s1")
+        s1 = st.selectbox("転移巣 部位①*", ["選択してください", "肺", "骨", "肝", "リンパ節", "その他"], key="s1")
+        if s1 == "その他": st.text_input("部位① 詳細", key="sd1")
         sz1 = st.number_input("大きさ① (診断時 mm)*", format="%.1f", value=0.0)
-        st.selectbox("転移巣 部位②", ["該当なし", "肺", "骨", "肝", "リンパ節", "その他"], key="s2")
+        
+        s2 = st.selectbox("転移巣 部位②", ["該当なし", "肺", "骨", "肝", "リンパ節", "その他"], key="s2")
+        if s2 == "その他": st.text_input("部位② 詳細", key="sd2")
         sz2 = st.number_input("大きさ② (mm)", format="%.1f", value=0.0)
-        st.selectbox("転移巣 部位③", ["該当なし", "肺", "骨", "肝", "リンパ節", "その他"], key="s3")
+
+        s3 = st.selectbox("転移巣 部位③", ["該当なし", "肺", "骨", "肝", "リンパ節", "その他"], key="s3")
+        if s3 == "その他": st.text_input("部位③ 詳細", key="sd3")
         sz3 = st.number_input("大きさ③ (mm)", format="%.1f", value=0.0)
+        
         m_pre_total = sz1 + sz2 + sz3
         st.info(f"転移巣 診断時 合計: {m_pre_total:.1f} mm")
     with mc2:
-        cm1_basis = st.selectbox("ｃM1症例 登録根拠*", ["選択してください", "EVPによりCR", "局所療法により消失、3か月維持"])
+        cm1_basis = st.selectbox("ｃM1症例 登録根拠*", ["選択してください", "EVP療法によりCR", "局所療法により消失、3か月維持"])
         local_tx = st.selectbox("局所療法の種類*", ["選択してください", "放射線（外照射）", "放射線（定位）", "切除", "RFA・凍結", "血管塞栓術", "その他", "該当なし"])
         cned_date = st.date_input("cNED確認日*", value=None)
 
@@ -142,6 +148,7 @@ with cx2:
 if st.button("適格性を判定する", type="primary", use_container_width=True):
     missing = []
     if any(v is None for v in [age, gender, height, weight, consent_date, diag_date, evp_start, eval_date, primary_size_pre, primary_size_post]): missing.append("必須項目の未入力")
+    if cm == "cM1" and s1 == "選択してください": missing.append("転移巣部位①の選択")
     
     if missing: st.error(f"入力漏れがあります: {', '.join(missing)}")
     else:
