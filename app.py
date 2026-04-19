@@ -18,13 +18,14 @@ HOSPITALS = [
 # ページ設定
 st.set_page_config(page_title="JUOG UTUC_Conlidative CRF", layout="wide")
 
-# デザイン調整 (CSS) - 左右に余裕を持たせる
+# デザイン調整 (CSS) - 左右の余白をしっかり作り、中央に寄せる
 st.markdown("""
     <style>
     .main { background-color: #F8FAFC; }
-    /* コンテンツ幅を制限して左右に余白を作る */
+    /* コンテンツ幅を950pxに制限して左右に余裕を持たせる */
     .block-container { 
         padding-top: 3rem; 
+        padding-bottom: 5rem;
         max-width: 950px; 
         margin: auto;
     }
@@ -32,6 +33,7 @@ st.markdown("""
     h2 { 
         font-size: 17px !important; color: #FFFFFF !important; background-color: #1E3A8A !important; 
         padding: 12px 20px !important; border-radius: 8px !important; margin-top: 40px !important; margin-bottom: 20px !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
     label { font-size: 14px !important; font-weight: 600 !important; color: #334155; }
     div[data-testid="column"] { padding: 0 15px; }
@@ -69,7 +71,7 @@ with c5:
     cn = st.selectbox("診断時_cN*", ["選択なし", "cN0", "cN1", "cN2", "cN3"])
     cm = st.selectbox("診断時_cM*", ["選択なし", "cM0", "cM1"])
 
-# --- 3. 転移巣情報 (cM1のみ) ---
+# --- 3. 転移巣情報 (cM1のみ表示) ---
 m_pre_total = 0.0
 cm1_basis = "該当なし"
 if cm == "cM1":
@@ -140,7 +142,7 @@ if st.button("適格性を判定する", type="primary", use_container_width=Tru
         missing.append("原発巣：手術前_最大径")
     
     if missing:
-        st.error(f"判定できません。以下の必須項目を入力してください: {', '.join(missing)}")
+        st.error(f"判定できません。以下の項目を入力してください: {', '.join(missing)}")
     else:
         # ロジック判定
         reasons = []
@@ -149,19 +151,36 @@ if st.button("適格性を判定する", type="primary", use_container_width=Tru
         if ps == "2以上（不適）":
             reasons.append("PS不良")
         
-        # Stage IV判定
+        # Stage IV判定 (T4, N+, M1のいずれか)
         is_stage_iv = (ct == "cT4") or (cn not in ["選択なし", "cN0"]) or (cm == "cM1")
         if not is_stage_iv:
-            reasons.append("Stage IV条件未充足")
+            reasons.append("Stage IV条件（cT4, cN+, cM1のいずれか）を満たしていません。")
             
         if cm == "cM1" and cm1_basis in ["該当なし", "選択なし"]:
-            reasons.append("cM1登録根拠不足")
+            reasons.append("cM1症例ですが、適切な登録根拠が選択されていません。")
         
         if best_effect == "PD" or recist_op == "PD（不適）":
-            reasons.append("PD(病勢進行)")
+            reasons.append("病勢進行（PD）のため対象外です。")
             
         if any(v == "あり（不適）" for v in [vessel, organ, other_cancer, pregnancy]):
-            reasons.append("除外基準に抵触")
+            reasons.append("除外基準に抵触しています。")
 
         # 縮小率計算
-        pri_red = ((primary_size_post - primary_
+        pri_red = ((primary_size_post - primary_size_pre) / primary_size_pre * 100)
+        
+        st.markdown("---")
+        if not reasons:
+            st.success("⭕ 適格 (Eligible)")
+            res_c1, res_c2 = st.columns(2)
+            with res_c1:
+                st.metric("原発巣 縮小率", f"{pri_red:.1f}%")
+            with res_c2:
+                if cm == "cM1" and m_pre_total > 0:
+                    met_red = ((m_post_total - m_pre_total) / m_pre_total * 100)
+                    st.metric("転移巣 合計縮小率", f"{met_red:.1f}%")
+            st.balloons()
+        else:
+            st.error("❌ 不適格 (Ineligible)")
+            for r in reasons:
+                st.write(f"・{r}")
+            st.info(f"参考値：原発巣縮小率 {pri_red:.1f}%")
