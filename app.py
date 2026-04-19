@@ -15,179 +15,145 @@ HOSPITALS = [
     "北海道大学", "三重大学", "横浜市立大学附属病院", "琉球大学病院", "和歌山県立医科大学"
 ]
 
-# ページ設定
 st.set_page_config(page_title="JUOG UTUC_Conlidative CRF", layout="wide")
 
-# デザイン調整 (CSS) - ヘッダーの文字色を白に固定し、視認性を最大化
+# デザイン調整 (CSS)
 st.markdown("""
     <style>
     .main { background-color: #F8FAFC; }
-    .block-container { padding-top: 2rem; max-width: 1100px; }
-    
-    /* タイトル設定 */
-    h1 { font-size: 28px !important; color: #0F172A; text-align: center; margin-bottom: 30px; font-weight: 800; }
-    
-    /* 青背景ヘッダーの設定（白文字に修正） */
+    h1 { font-size: 26px !important; color: #0F172A; text-align: center; margin-bottom: 25px; font-weight: 800; }
     h2 { 
-        font-size: 18px !important; 
-        color: #FFFFFF !important; 
-        background-color: #1E3A8A !important; 
-        padding: 12px 20px !important; 
-        border-radius: 8px !important; 
-        margin-top: 35px !important; 
-        margin-bottom: 20px !important;
-        font-weight: 600 !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        font-size: 17px !important; color: #FFFFFF !important; background-color: #1E3A8A !important; 
+        padding: 10px 18px !important; border-radius: 6px !important; margin-top: 30px !important; margin-bottom: 15px !important;
     }
-    
-    /* 入力ラベルの設定 */
-    label { font-size: 14px !important; font-weight: 600 !important; color: #334155; margin-bottom: 5px !important; }
-    
-    /* 余白と入力欄の調整 */
-    .stNumberInput, .stTextInput, .stSelectbox, .stDateInput { margin-bottom: 5px; }
-    div[data-testid="column"] { padding: 0 15px; }
-    
-    /* ラジオボタンの隙間 */
-    .stRadio > div { gap: 25px; margin-top: 5px; }
+    label { font-size: 14px !important; font-weight: 600 !important; color: #334155; }
+    .stMetric { background-color: #FFFFFF; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("JUOG UTUC_Conlidative 登録用CRF")
 
-# フォームの中身
-# --- セクション1：基本情報 ---
+# --- 1. 患者基本情報 ---
 st.header("患者基本情報")
-col1, col2, col3 = st.columns(3)
-with col1:
+c1, c2, c3 = st.columns(3)
+with c1:
     facility = st.selectbox("施設名*", ["選択してください"] + HOSPITALS)
     patient_id = st.text_input("症例ID（事務局用）")
     consent_date = st.date_input("同意取得日*", value=None)
-with col2:
+with c2:
     age = st.number_input("同意取得時の年齢*", min_value=0, max_value=120, value=None)
     gender = st.radio("性別*", ["選択なし", "男", "女"], horizontal=True)
-with col3:
+with c3:
     height = st.number_input("身長 (cm)*", format="%.1f", value=None)
     weight = st.number_input("体重 (kg)*", format="%.1f", value=None)
     ps = st.radio("ECOG PS*", ["0", "1", "2以上（不適）"], horizontal=True)
 
-# --- セクション2：診断情報 ---
-st.header("診断・原発巣情報")
-col4, col5 = st.columns(2)
-with col4:
-    diag_date = st.date_input("初回診断日（画像＋組織/細胞診）*", value=None)
-    diag_type = st.multiselect("診断根拠となった検体*", ["組織診", "細胞診"])
+# --- 2. 原発巣情報 (診断時) ---
+st.header("原発巣情報 (診断時)")
+c4, c5 = st.columns(2)
+with c4:
+    diag_date = st.date_input("初回診断日*", value=None)
+    diag_type = st.multiselect("診断根拠*", ["組織診", "細胞診"])
     primary_site = st.radio("原発巣 部位*", ["腎盂", "尿管", "腎盂・尿管（両方）"], horizontal=True)
-with col5:
-    primary_size_pre = st.number_input("診断時_最大径 (mm)*", format="%.1f", value=None)
+    primary_size_pre = st.number_input("原発巣：診断時_最大径 (mm)*", format="%.1f", value=None)
+with c5:
     ct = st.selectbox("診断時_cT*", ["選択なし", "cTa", "cTis", "cT1", "cT2", "cT3", "cT4"])
     cn = st.selectbox("診断時_cN*", ["選択なし", "cN0", "cN1", "cN2", "cN3"])
     cm = st.selectbox("診断時_cM*", ["選択なし", "cM0", "cM1"])
 
-# --- セクション3：転移巣情報 (cM1の時のみ表示) ---
-m_pre_list = [0.0, 0.0, 0.0]
+# --- 3. 転移巣情報 (cM1のみ) ---
+m_pre_total = 0.0
 cm1_basis = "該当なし"
 if cm == "cM1":
     st.header("転移巣情報 (cM1症例)")
-    cols_met = st.columns(3)
-    for i in range(1, 4):
-        with cols_met[i-1]:
-            st.selectbox(f"部位{i}", ["肺", "骨", "肝", "リンパ節", "その他", "該当なし"], key=f"site{i}")
-            st.text_input(f"その他の場合：部位{i}", key=f"other{i}")
-            m_pre_val = st.number_input(f"大きさ{i} (mm)", format="%.1f", value=None, key=f"msize{i}")
-            m_pre_list[i-1] = m_pre_val if m_pre_val is not None else 0.0
+    c_m1, c_m2, c_m3 = st.columns(3)
+    m_pre_list = []
+    for i, col in enumerate([c_m1, c_m2, c_m3], 1):
+        with col:
+            st.selectbox(f"部位{i}", ["肺", "骨", "肝", "リンパ節", "その他", "該当なし"], key=f"s{i}")
+            v = st.number_input(f"大きさ{i} (mm)", format="%.1f", value=None, key=f"ms{i}")
+            m_pre_list.append(v if v is not None else 0.0)
+    m_pre_total = sum(m_pre_list)
     
-    col_m_basis, col_m_tx = st.columns(2)
-    with col_m_basis:
-        cm1_basis = st.selectbox("ｃM1症例 登録根拠*", ["選択なし", "EVP療法によりCR", "局所療法により画像上活動性の遠隔転移病変消失、かつ3か月以上維持", "該当なし"])
-    with col_m_tx:
-        local_tx_type = st.selectbox("局所療法の種類*", ["選択なし", "放射線治療（外照射）", "放射線治療（定位照射）", "転移巣切除", "RFA・凍結療法など", "血管塞栓術", "その他", "該当なし"])
+    cb1, cb2 = st.columns(2)
+    with cb1:
+        cm1_basis = st.selectbox("ｃM1症例 登録根拠*", ["選択なし", "EVP療法によりCR", "局所療法により消失、3か月維持", "該当なし"])
+    with cb2:
+        local_tx = st.selectbox("局所療法の種類*", ["選択なし", "放射線", "手術", "RFA", "その他"])
     cned_date = st.date_input("cNED確認日", value=None)
 
-# --- セクション4：EVP治療情報 ---
+# --- 4. EVP治療情報 ---
 st.header("EVP治療情報")
-col_evp1, col_evp2 = st.columns(2)
-with col_evp1:
+c6, c7 = st.columns(2)
+with c6:
     evp_start = st.date_input("EVP 初回投与日*", value=None)
     evp_end = st.date_input("EVP 最終投与日*", value=None)
-    ev_dose = st.number_input("EV 初回投与量 (mg/kg)*", format="%.2f", value=None)
-    pembro_dose = st.number_input("Pembrolizumab 初回投与量 (mg/kg)*", format="%.2f", value=None)
-with col_evp2:
-    courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
-    courses_reason = st.text_input("3コース未満の場合：理由")
-    reduction = st.radio("EVP 減量の有無*", ["なし", "あり"], horizontal=True)
-    reduction_detail = st.text_area("減量の詳細", height=68)
-
-col_eval1, col_eval2 = st.columns(2)
-with col_eval1:
-    eval_date = st.date_input("EVP 病勢制御確認日 (画像検査日)*", value=None)
-    sd_date = st.text_input("SDの場合は、投与後画像評価初回日")
-with col_eval2:
     best_effect = st.selectbox("EVP 最良総合効果*", ["選択なし", "CR", "PR", "SD", "PD"])
-    recist_op = st.selectbox("手術前のRECIST判定*", ["選択なし", "CR", "PR", "SD", "PD（不適）"])
+with c7:
+    courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
+    reduction = st.radio("EVP 減量の有無*", ["なし", "あり"], horizontal=True)
 
-# --- セクション5：手術前評価 ---
+# --- 5. 手術前評価 ---
 st.header("手術前評価")
-col_preop1, col_preop2 = st.columns(2)
-with col_preop1:
-    primary_size_post = st.number_input("原発巣 手術前_最大径 (mm)*", format="%.1f", value=None)
-with col_preop2:
-    m_post_list = [0.0, 0.0, 0.0]
+c8, c9 = st.columns(2)
+with c8:
+    primary_size_post = st.number_input("原発巣：手術前_最大径 (mm)*", format="%.1f", value=None)
+    recist_op = st.selectbox("手術前のRECIST判定*", ["選択なし", "CR", "PR", "SD", "PD（不適）"])
+with c9:
+    m_post_total = 0.0
     if cm == "cM1":
+        m_post_list = []
         for i in range(1, 4):
-            m_post_val = st.number_input(f"転移巣{chr(9311+i)} 手術前 (mm)", format="%.1f", value=None, key=f"mpost{i}")
-            m_post_list[i-1] = m_post_val if m_post_val is not None else 0.0
+            v = st.number_input(f"転移巣{i} 手術前 (mm)", format="%.1f", value=None, key=f"mp{i}")
+            m_post_list.append(v if v is not None else 0.0)
+        m_post_total = sum(m_post_list)
 
-# --- セクション6：除外基準・手術予定 ---
+# --- 6. 除外基準 & 手術予定 ---
 st.header("除外基準 & 手術予定")
-col_ex1, col_ex2 = st.columns(2)
-with col_ex1:
-    vessel_inv = st.radio("切除不能な血管浸潤*", ["なし", "あり（不適）"], horizontal=True)
-    organ_inv = st.radio("切除不能な臓器浸潤*", ["なし", "あり（不適）"], horizontal=True)
-    ae_g3 = st.radio("G3以上の未回復のEVP有害事象*", ["なし", "あり（不適）"], horizontal=True)
-with col_ex2:
+c10, c11 = st.columns(2)
+with c10:
+    vessel = st.radio("切除不能な血管浸潤*", ["なし", "あり（不適）"], horizontal=True)
+    organ = st.radio("切除不能な臓器浸潤*", ["なし", "あり（不適）"], horizontal=True)
+with c11:
     other_cancer = st.radio("活動性の重複がん*", ["なし", "あり（不適）"], horizontal=True)
     pregnancy = st.radio("妊娠・授乳・同意困難等*", ["なし", "あり（不適）"], horizontal=True)
 
-col_op1, col_op2 = st.columns(2)
-with col_op1:
-    op_type = st.selectbox("予定している手術*", ["選択なし", "根治的腎尿管全摘除術", "尿管部分切除術"])
-with col_op2:
-    op_date = st.date_input("手術予定日", value=None)
-
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 判定ボタン
+# 判定実行
 if st.button("適格性を判定する", type="primary", use_container_width=True):
-    reasons = []
-    # 必須チェック（数値項目）
-    if any(v is None for v in [age, primary_size_pre, primary_size_post]):
-        st.warning("必須数値項目（*印）を入力してください。")
+    # 必須チェックの可視化
+    missing = []
+    if age is None: missing.append("同意取得時の年齢")
+    if primary_size_pre is None: missing.append("原発巣：診断時_最大径")
+    if primary_size_post is None: missing.append("原発巣：手術前_最大径")
+    
+    if missing:
+        st.error(f"以下の必須項目が未入力です: {', '.join(missing)}")
     else:
-        # ロジック判定
+        reasons = []
         if age < 20: reasons.append("年齢20歳未満")
         if ps == "2以上（不適）": reasons.append("PS不良")
-        
         is_stage_iv = (ct == "cT4") or (cn not in ["選択なし", "cN0"]) or (cm == "cM1")
         if not is_stage_iv: reasons.append("Stage IV条件未充足")
-        
-        if cm == "cM1" and cm1_basis in ["該当なし", "選択なし"]:
-            reasons.append("cM1登録根拠不足")
-        
-        if best_effect == "PD" or recist_op == "PD（不適）":
-            reasons.append("PD(病勢進行)")
-            
-        if any(v == "あり（不適）" for v in [vessel_inv, organ_inv, ae_g3, other_cancer, pregnancy]):
+        if cm == "cM1" and cm1_basis in ["該当なし", "選択なし"]: reasons.append("cM1登録根拠不足")
+        if best_effect == "PD" or recist_op == "PD（不適）": reasons.append("PD(病勢進行)")
+        if any(v == "あり（不適）" for v in [vessel, organ, other_cancer, pregnancy]):
             reasons.append("除外基準に抵触")
 
         # 縮小率計算
         pri_red = ((primary_size_post - primary_size_pre) / primary_size_pre * 100)
         
         st.markdown("---")
-        st.markdown("### 📋 最終判定結果")
         if not reasons:
-            st.success(f"⭕ 適格 (Eligible) / 原発巣縮小率: {pri_red:.1f}%")
+            st.success("⭕ 適格 (Eligible)")
+            res_c1, res_c2 = st.columns(2)
+            res_c1.metric("原発巣 縮小率", f"{pri_red:.1f}%")
+            if cm == "cM1" and m_pre_total > 0:
+                met_red = ((m_post_total - m_pre_total) / m_pre_total * 100)
+                res_c2.metric("転移巣 合計縮小率", f"{met_red:.1f}%")
             st.balloons()
         else:
             st.error("❌ 不適格 (Ineligible)")
-            for r in reasons:
-                st.write(f"・{r}")
+            for r in reasons: st.write(f"・{r}")
+            st.info(f"参考値：原発巣縮小率 {pri_red:.1f}%")
