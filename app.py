@@ -29,7 +29,7 @@ st.markdown("""
         padding: 12px 20px !important; border-radius: 8px !important; margin-top: 35px !important; margin-bottom: 15px !important;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
-    /* 選択項目のタグの色を調整（赤の白抜きを防止） */
+    /* マルチセレクト（組織診など）の赤色白抜きを防止 */
     span[data-baseweb="tag"] {
         background-color: #E2E8F0 !important;
         color: #1E293B !important;
@@ -75,21 +75,24 @@ cm1_basis = "該当なし"
 cned_date = None
 if cm == "cM1":
     st.header("転移巣情報 (cM1症例)")
-    cm1_c1, cm1_c2, cm1_c3 = st.columns(3)
+    cm1_cols = st.columns(3)
     m_pre_list = []
-    for i, col in enumerate([cm1_c1, cm1_c2, cm1_c3], 1):
+    for i, col in enumerate(cm1_cols, 1):
         with col:
-            st.selectbox(f"部位{i}", ["肺", "骨", "肝", "リンパ節", "その他", "該当なし"], key=f"spre{i}")
-            v = st.number_input(f"大きさ{i} (mm)", format="%.1f", value=None, key=f"mpre{i}")
+            site = st.selectbox(f"部位{i}", ["肺", "骨", "肝", "リンパ節", "その他", "該当なし"], key=f"site_{i}")
+            if site == "その他":
+                st.text_input(f"部位{i}の詳細", key=f"site_detail_{i}")
+            v = st.number_input(f"大きさ{i} (mm)", format="%.1f", value=None, key=f"size_{i}")
             m_pre_list.append(v if v is not None else 0.0)
     m_pre_total = sum(m_pre_list)
     
     cb1, cb2 = st.columns(2)
     with cb1:
-        # 「該当なし」を削除
         cm1_basis = st.selectbox("ｃM1症例 登録根拠*", ["選択なし", "EVP療法によりCR", "局所療法により画像上活動性の遠隔転移病変消失、かつ3か月以上維持"])
     with cb2:
-        local_tx = st.selectbox("局所療法の種類*", ["選択なし", "放射線", "手術", "RFA", "その他"])
+        local_tx = st.selectbox("局所療法の種類*", ["選択なし", "放射線治療（外照射）", "放射線治療（定位照射）", "転移巣切除", "RFA・凍結療法など", "血管塞栓術：TACE/TAEなど", "その他", "該当なし"])
+        if local_tx == "その他":
+            st.text_input("局所療法の詳細", key="local_tx_detail")
     cned_date = st.date_input("cNED確認日*", value=None)
 
 # --- 4. EVP治療情報 ---
@@ -105,9 +108,9 @@ with ce2:
     courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
     courses_reason = st.text_input("3コース未満の場合：理由")
     reduction = st.radio("EVP 減量の有無*", ["なし", "あり"], horizontal=True)
-    reduction_detail = st.text_area("減量の詳細", height=68)
-    eval_date = st.date_input("EVP 病勢制御確認日 (画像検査日)*", value=None)
-    sd_date = st.text_input("SDの場合は、投与後画像評価初回日")
+    if reduction == "あり":
+        reduction_detail = st.text_area("減量の詳細", height=68)
+    eval_date = st.date_input("EVP 病勢制御確認日 (SDの場合は、投与後画像評価初回日)*", value=None)
 
 # --- 5. 手術前評価 & RECIST判定 ---
 st.header("手術前評価 & RECIST判定")
@@ -119,7 +122,7 @@ with cp1:
         st.markdown("**転移巣：手術前**")
         m_post_list = []
         for i in range(1, 4):
-            v = st.number_input(f"転移巣{i} 手術前 (mm)", format="%.1f", value=None, key=f"mpost{i}")
+            v = st.number_input(f"転移巣{i} 手術前 (mm)", format="%.1f", value=None, key=f"mpost_val_{i}")
             m_post_list.append(v if v is not None else 0.0)
         m_post_total = sum(m_post_list)
 
@@ -150,31 +153,29 @@ with cx2:
     other_cancer = st.radio("活動性の重複がん*", ["なし", "あり（不適）"], horizontal=True)
     pregnancy = st.radio("妊娠・授乳・同意困難等*", ["なし", "あり（不適）"], horizontal=True)
     op_type = st.selectbox("予定している手術*", ["選択なし", "根治的腎尿管全摘除術", "尿管部分切除術"])
-    op_date = st.date_input("手術予定日*", value=None)
+    op_date = st.date_input("手術予定日", value=None)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # --- 最終判定 ---
 if st.button("最終適格性を判定する", type="primary", use_container_width=True):
     reasons = []
-    # 必須入力チェック
+    # 必須入力チェック（手術予定日は除外）
     if any(v is None for v in [age, consent_date, diag_date, evp_start, eval_date, primary_size_pre, primary_size_post]):
         st.error("必須項目（*印）をすべて入力してください。")
     else:
         # 日付バリデーション
         if cm == "cM1" and cned_date:
-            three_months_ago = consent_date - timedelta(days=90)
-            if cned_date > three_months_ago:
-                reasons.append("cNED確認日は同意取得日より3ヶ月以上前でなければなりません")
+            if cned_date > (consent_date - timedelta(days=90)):
+                reasons.append("cNED確認日は同意取得日より3ヶ月以上前である必要があります")
         
         if evp_start <= diag_date:
             reasons.append("EVP初回投与日は診断日より後の日付である必要があります")
             
-        nine_weeks_after = evp_start + timedelta(weeks=9)
-        if eval_date < nine_weeks_after:
-            reasons.append("病勢制御確認はEVP開始から少なくとも9週間（3コース相当）経過している必要があります")
+        if eval_date < (evp_start + timedelta(weeks=9)):
+            reasons.append("病勢制御確認日はEVP開始から少なくとも9週間経過している必要があります")
 
-        # 医学的ロジック
+        # 適格性判定
         if age < 20: reasons.append("年齢20歳未満")
         if ps == "2以上（不適）": reasons.append("PS不良")
         is_stage_iv = (ct == "cT4") or (cn not in ["選択なし", "cN0"]) or (cm == "cM1")
@@ -186,7 +187,7 @@ if st.button("最終適格性を判定する", type="primary", use_container_wid
 
         st.markdown("---")
         if not reasons:
-            st.success("⭕ 適格 (Eligible): 登録可能です")
+            st.success("⭕ 適格 (Eligible): 研究登録可能です")
             st.balloons()
         else:
             st.error("❌ 不適格 (Ineligible)")
