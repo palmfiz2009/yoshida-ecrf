@@ -20,17 +20,48 @@ HOSPITALS = [
 
 st.set_page_config(page_title="JUOG UTUC_Conlidative CRF", layout="wide")
 
-# デザイン調整 (CSS)
+# デザイン調整 (CSS) - 横幅を1100pxに拡張し、各所の余白を調整
 st.markdown("""
     <style>
     .main { background-color: #F8FAFC; }
-    .block-container { padding-top: 2rem; max-width: 950px; margin: auto; padding-bottom: 5rem; }
-    h1 { font-size: 26px !important; color: #0F172A; text-align: center; margin-bottom: 30px; font-weight: 800; }
-    h2 { font-size: 17px !important; color: #FFFFFF !important; background-color: #1E3A8A !important; 
-         padding: 12px 20px !important; border-radius: 8px !important; margin-top: 35px !important; margin-bottom: 15px !important; }
-    label { font-size: 14px !important; font-weight: 600 !important; color: #334155; }
+    
+    /* コンテンツの最大幅を1100pxに拡張し、左右にゆとりを持たせる */
+    .block-container { 
+        padding-top: 3rem; 
+        max-width: 1100px; 
+        margin: auto; 
+        padding-bottom: 7rem; 
+    }
+    
+    h1 { font-size: 30px !important; color: #0F172A; text-align: center; margin-bottom: 40px; font-weight: 800; letter-spacing: 0.05em; }
+    
+    /* ヘッダーデザインの洗練 */
+    h2 { 
+        font-size: 18px !important; color: #FFFFFF !important; background-color: #1E3A8A !important; 
+        padding: 14px 25px !important; border-radius: 10px !important; margin-top: 45px !important; margin-bottom: 25px !important;
+        box-shadow: 0 4px 12px rgba(30, 58, 138, 0.15);
+    }
+    
+    label { font-size: 14.5px !important; font-weight: 600 !important; color: #334155; margin-bottom: 8px !important; }
+    
+    /* 入力欄の微調整 */
+    .stNumberInput, .stTextInput, .stSelectbox, .stDateInput { margin-bottom: 10px; }
+    
+    /* マルチセレクトのタグ色固定 */
     span[data-baseweb="tag"] { background-color: #E2E8F0 !important; color: #1E293B !important; }
-    .result-section { background-color: #FFFFFF; padding: 30px; border-radius: 15px; border: 2px solid #1E3A8A; margin-top: 30px; }
+    
+    /* カラム間の余白を広げる */
+    div[data-testid="column"] { padding: 0 25px; }
+    
+    /* 判定・送信結果のボックス */
+    .result-section { 
+        background-color: #FFFFFF; 
+        padding: 40px; 
+        border-radius: 18px; 
+        border: 1px solid #E2E8F0; 
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        margin-top: 40px; 
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -78,7 +109,7 @@ with c5:
     cn = st.selectbox("診断時_cN*", ["選択してください", "cN0", "cN1", "cN2", "cN3"])
     cm = st.selectbox("診断時_cM*", ["選択してください", "cM0", "cM1"])
 
-# --- 3. 転移巣情報 (cM1のみ) ---
+# --- 3. 転移巣情報 (cM1のみ表示) ---
 m_pre_total, site_1, size_1, cned_date = 0.0, "選択なし", None, None
 if cm == "cM1":
     st.header("転移巣情報 (cM1症例)")
@@ -96,7 +127,7 @@ if cm == "cM1":
             v = st.number_input(f"大きさ{chr(9311+i)} (mm)", format="%.1f", value=None, key=f"sz{i}")
             m_pre_list.append(v if v is not None else 0.0)
     m_pre_total = sum(m_pre_list)
-    cm1_basis = st.selectbox("ｃM1症例 登録根拠*", ["選択してください", "EVP療法によりCR", "局所療法により消失、3か月維持"])
+    cm1_basis = st.selectbox("ｃM1症例 登録根拠*", ["選択してください", "EVP療法によりCR", "局所療法により画像上活動性の遠隔転移病変消失、かつ3か月以上維持"])
     local_tx = st.selectbox("局所療法の種類*", ["選択してください", "放射線治療（外照射）", "放射線治療（定位照射）", "転移巣切除", "RFA・凍結療法など", "血管塞栓術：TACE/TAEなど", "その他", "該当なし"])
     if local_tx == "その他": st.text_input("局所療法の詳細", key="l_det")
     cned_date = st.date_input("cNED確認日*", value=None)
@@ -113,10 +144,10 @@ with ce2:
     best_effect = st.selectbox("EVP 最良総合効果*", ["選択してください", "CR", "PR", "SD", "PD"])
     courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
     reduction = st.radio("EVP 減量の有無*", ["なし", "あり"], index=None, horizontal=True)
-    if reduction == "あり": st.text_area("減量の詳細（自由記載）", height=68)
+    if reduction == "あり": st.text_area("減量の詳細（自由記載）", height=85)
     eval_date = st.date_input("EVP 病勢制御確認日 (SDの場合は、投与後画像評価初回日)*", value=None)
 
-# --- 5. 手術前評価 ---
+# --- 5. 手術前評価 & RECIST判定 ---
 st.header("手術前評価 & RECIST判定")
 cp1, cp2 = st.columns(2)
 with cp1:
@@ -185,6 +216,6 @@ if "report" in st.session_state:
     st.info("内容を確認し、間違いなければ送信してください。")
     if st.button("✉️ 事務局・吉田先生へ結果を送信する", use_container_width=True):
         if send_result_email(st.session_state.report):
-            st.success("事務局および吉田先生へ送信完了しました。")
+            st.success("事務局および吉田先生へ送信完了しました。お疲れ様でした！")
             del st.session_state.report
         else: st.error("送信エラー。設定を確認してください。")
