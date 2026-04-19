@@ -22,18 +22,25 @@ st.set_page_config(page_title="JUOG UTUC_Conlidative CRF", layout="wide")
 st.markdown("""
     <style>
     .main { background-color: #F8FAFC; }
-    .block-container { padding-top: 2rem; max-width: 980px; margin: auto; }
+    .block-container { padding-top: 2rem; max-width: 950px; margin: auto; }
     h1 { font-size: 26px !important; color: #0F172A; text-align: center; margin-bottom: 30px; font-weight: 800; }
-    h2 { font-size: 17px !important; color: #FFFFFF !important; background-color: #1E3A8A !important; 
-         padding: 10px 20px !important; border-radius: 8px !important; margin-top: 35px !important; margin-bottom: 15px !important; }
+    
+    /* 全ヘッダーを青背景・白文字に統一 */
+    h2 { 
+        font-size: 17px !important; color: #FFFFFF !important; background-color: #1E3A8A !important; 
+        padding: 12px 20px !important; border-radius: 8px !important; margin-top: 35px !important; margin-bottom: 15px !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    
     label { font-size: 14px !important; font-weight: 600 !important; color: #334155; }
-    .metric-card { background-color: #FFFFFF; padding: 20px; border-radius: 12px; border: 1px solid #E2E8F0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .stMetric { background-color: #FFFFFF; padding: 20px; border-radius: 12px; border: 1px solid #E2E8F0; }
+    div[data-testid="column"] { padding: 0 15px; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("JUOG UTUC_Conlidative 登録用CRF")
 
-# --- 1. 基本情報 ---
+# --- 1. 患者基本情報 ---
 st.header("患者基本情報")
 c1, c2, c3 = st.columns(3)
 with c1:
@@ -48,7 +55,7 @@ with c3:
     weight = st.number_input("体重 (kg)*", format="%.1f", value=None)
     ps = st.radio("ECOG PS*", ["0", "1", "2以上（不適）"], horizontal=True)
 
-# --- 2. 診断時・原発巣情報 ---
+# --- 2. 原発巣情報 (診断時) ---
 st.header("原発巣情報 (診断時)")
 c4, c5 = st.columns(2)
 with c4:
@@ -66,12 +73,12 @@ m_pre_total = 0.0
 cm1_basis = "該当なし"
 if cm == "cM1":
     st.header("転移巣情報 (cM1症例)")
-    cm1_col1, cm1_col2, cm1_col3 = st.columns(3)
+    cm1_c1, cm1_c2, cm1_c3 = st.columns(3)
     m_pre_list = []
-    for i, col in enumerate([cm1_col1, cm1_col2, cm1_col3], 1):
+    for i, col in enumerate([cm1_c1, cm1_c2, cm1_c3], 1):
         with col:
-            st.selectbox(f"部位{i}", ["肺", "骨", "肝", "リンパ節", "その他", "該当なし"], key=f"s_pre{i}")
-            v = st.number_input(f"大きさ{i} (mm)", format="%.1f", value=None, key=f"ms_pre{i}")
+            st.selectbox(f"部位{i}", ["肺", "骨", "肝", "リンパ節", "その他", "該当なし"], key=f"spre{i}")
+            v = st.number_input(f"大きさ{i} (mm)", format="%.1f", value=None, key=f"mpre{i}")
             m_pre_list.append(v if v is not None else 0.0)
     m_pre_total = sum(m_pre_list)
     
@@ -82,91 +89,93 @@ if cm == "cM1":
         local_tx = st.selectbox("局所療法の種類*", ["選択なし", "放射線", "手術", "RFA", "その他"])
     cned_date = st.date_input("cNED確認日", value=None)
 
-# --- 4. 手術前評価（リアルタイム計算用） ---
+# --- 4. EVP治療情報 (復活版) ---
+st.header("EVP治療情報")
+ce1, ce2 = st.columns(2)
+with ce1:
+    evp_start = st.date_input("EVP 初回投与日*", value=None)
+    evp_end = st.date_input("EVP 最終投与日*", value=None)
+    ev_dose = st.number_input("EV 初回投与量 (mg/kg)*", format="%.2f", value=None)
+    pembro_dose = st.number_input("Pembrolizumab 初回投与量 (mg/kg)*", format="%.2f", value=None)
+    best_effect = st.selectbox("EVP 最良総合効果*", ["選択なし", "CR", "PR", "SD", "PD"])
+with ce2:
+    courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
+    courses_reason = st.text_input("3コース未満の場合：理由")
+    reduction = st.radio("EVP 減量の有無*", ["なし", "あり"], horizontal=True)
+    reduction_detail = st.text_area("減量の詳細", height=100)
+    eval_date = st.date_input("EVP 病勢制御確認日 (画像検査日)*", value=None)
+    sd_date = st.text_input("SDの場合は、投与後画像評価初回日")
+
+# --- 5. 手術前評価 & RECIST判定 ---
 st.header("手術前評価 & RECIST判定")
-st.info("数値を入力すると、下の計算結果がリアルタイムで更新されます。")
 cp1, cp2 = st.columns(2)
 with cp1:
     primary_size_post = st.number_input("原発巣：手術前_最大径 (mm)*", format="%.1f", value=None)
-    # 総合評価のための入力
     m_post_total = 0.0
     if cm == "cM1":
-        st.write("---")
         st.markdown("**転移巣：手術前**")
         m_post_list = []
         for i in range(1, 4):
-            v = st.number_input(f"転移巣{i} 手術前 (mm)", format="%.1f", value=None, key=f"mp_post{i}")
+            v = st.number_input(f"転移巣{i} 手術前 (mm)", format="%.1f", value=None, key=f"mpost{i}")
             m_post_list.append(v if v is not None else 0.0)
         m_post_total = sum(m_post_list)
 
 with cp2:
-    # リアルタイム計算ロジック
+    # リアルタイム判定
+    auto_recist = "未入力"
+    sld_change = 0.0
     if primary_size_pre and primary_size_post is not None:
-        # SLD (Sum of Longest Diameters)
         sld_pre = primary_size_pre + m_pre_total
         sld_post = primary_size_post + m_post_total
         sld_change = ((sld_post - sld_pre) / sld_pre * 100) if sld_pre > 0 else 0
-        
-        # RECIST 自動判定
         if sld_post == 0: auto_recist = "CR"
         elif sld_change <= -30: auto_recist = "PR"
         elif sld_change >= 20: auto_recist = "PD"
         else: auto_recist = "SD"
         
-        # 表示
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.subheader("📊 リアルタイム評価")
+        st.write("### リアルタイム評価結果")
         st.metric("長径和(SLD) 変化率", f"{sld_change:.1f}%")
-        
-        color = "green" if auto_recist in ["CR", "PR"] else "orange" if auto_recist == "SD" else "red"
-        st.markdown(f"総合判定(RECIST 1.1): <span style='color:{color}; font-weight:bold; font-size:20px;'>{auto_recist}</span>", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(f"判定: **{auto_recist}**")
     else:
-        st.warning("サイズを入力すると判定が表示されます")
+        st.info("サイズを入力すると判定が計算されます")
 
-# --- 5. EVP治療情報 & 除外基準 ---
-st.header("EVP治療情報 & 除外基準")
-ce1, ce2 = st.columns(2)
-with ce1:
-    best_effect = st.selectbox("EVP 最良総合効果*", ["選択なし", "CR", "PR", "SD", "PD"])
+# --- 6. 除外基準 & 手術予定 ---
+st.header("除外基準 & 手術予定")
+cx1, cx2 = st.columns(2)
+with cx1:
     vessel = st.radio("切除不能な血管浸潤*", ["なし", "あり（不適）"], horizontal=True)
     organ = st.radio("切除不能な臓器浸潤*", ["なし", "あり（不適）"], horizontal=True)
-with ce2:
-    courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
+    ae_g3 = st.radio("G3以上の未回復のEVP有害事象*", ["なし", "あり（不適）"], horizontal=True)
+with cx2:
     other_cancer = st.radio("活動性の重複がん*", ["なし", "あり（不適）"], horizontal=True)
     pregnancy = st.radio("妊娠・授乳・同意困難等*", ["なし", "あり（不適）"], horizontal=True)
+    op_type = st.selectbox("予定している手術*", ["選択なし", "根治的腎尿管全摘除術", "尿管部分切除術"])
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 # --- 判定ボタン ---
-if st.button("最終適格性を確定する", type="primary", use_container_width=True):
+if st.button("最終適格性を判定する", type="primary", use_container_width=True):
     missing = []
     if age is None: missing.append("年齢")
     if primary_size_pre is None: missing.append("診断時サイズ")
     if primary_size_post is None: missing.append("手術前サイズ")
     
     if missing:
-        st.error(f"判定不可。必須項目を入力してください: {', '.join(missing)}")
+        st.error(f"以下の必須項目を入力してください: {', '.join(missing)}")
     else:
         reasons = []
-        # 適格性ロジック
         if age < 20: reasons.append("年齢20歳未満")
         if ps == "2以上（不適）": reasons.append("PS不良")
-        
-        # Stage IV判定
         is_stage_iv = (ct == "cT4") or (cn not in ["選択なし", "cN0"]) or (cm == "cM1")
         if not is_stage_iv: reasons.append("Stage IV条件未充足")
-        
-        # RECIST不適格判定（自動判定を使用）
-        if auto_recist == "PD": reasons.append("RECIST判定がPD（20%以上の増大）です")
-        if best_effect == "PD": reasons.append("EVP治療効果がPDです")
-        
-        if any(v == "あり（不適）" for v in [vessel, organ, other_cancer, pregnancy]):
+        if cm == "cM1" and cm1_basis in ["該当なし", "選択なし"]: reasons.append("cM1登録根拠不足")
+        if auto_recist == "PD" or best_effect == "PD": reasons.append("PD(病勢進行)のため対象外")
+        if any(v == "あり（不適）" for v in [vessel, organ, ae_g3, other_cancer, pregnancy]):
             reasons.append("除外基準に抵触")
 
         st.markdown("---")
         if not reasons:
-            st.success("✅ 適格 (Eligible): 研究登録可能です")
+            st.success("⭕ 適格 (Eligible): 登録可能です")
             st.balloons()
         else:
             st.error("❌ 不適格 (Ineligible)")
