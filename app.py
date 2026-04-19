@@ -18,45 +18,24 @@ HOSPITALS = [
 # ページ設定
 st.set_page_config(page_title="JUOG UTUC_Conlidative CRF", layout="wide")
 
-# デザイン調整 (CSS) - 左右の余白を広げ、中央に寄せる
+# デザイン調整 (CSS) - 左右に余裕を持たせる
 st.markdown("""
     <style>
-    .main { background-color: #F1F5F9; }
-    /* コンテンツの最大幅を900pxに制限して、左右に大きな余白を作る */
+    .main { background-color: #F8FAFC; }
+    /* コンテンツ幅を制限して左右に余白を作る */
     .block-container { 
         padding-top: 3rem; 
-        padding-bottom: 5rem;
-        max-width: 920px; 
+        max-width: 950px; 
         margin: auto;
     }
-    
     h1 { font-size: 26px !important; color: #0F172A; text-align: center; margin-bottom: 35px; font-weight: 800; }
-    
-    /* セクションヘッダー */
     h2 { 
         font-size: 17px !important; color: #FFFFFF !important; background-color: #1E3A8A !important; 
         padding: 12px 20px !important; border-radius: 8px !important; margin-top: 40px !important; margin-bottom: 20px !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
-    
     label { font-size: 14px !important; font-weight: 600 !important; color: #334155; }
-    
-    /* 入力エリアの背景を白くして、フォームらしさを強調 */
-    .stNumberInput, .stTextInput, .stSelectbox, .stDateInput, .stMultiSelect { 
-        background-color: #FFFFFF; 
-        border-radius: 5px;
-    }
-    
-    /* 結果表示のカード */
-    .stMetric { background-color: #FFFFFF; padding: 20px; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-    
-    /* ボタンを中央に */
-    div.stButton > button {
-        height: 3em;
-        font-size: 18px !important;
-        font-weight: 700 !important;
-        margin-top: 20px;
-    }
+    div[data-testid="column"] { padding: 0 15px; }
+    .stMetric { background-color: #FFFFFF; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -90,7 +69,7 @@ with c5:
     cn = st.selectbox("診断時_cN*", ["選択なし", "cN0", "cN1", "cN2", "cN3"])
     cm = st.selectbox("診断時_cM*", ["選択なし", "cM0", "cM1"])
 
-# --- 3. 転移巣情報 (cM1のみ表示) ---
+# --- 3. 転移巣情報 (cM1のみ) ---
 m_pre_total = 0.0
 cm1_basis = "該当なし"
 if cm == "cM1":
@@ -149,6 +128,40 @@ with c11:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 判定実行
+# --- 判定実行ボタン ---
 if st.button("適格性を判定する", type="primary", use_container_width=True):
-    # 必須入力
+    # 必須入力チェック
+    missing = []
+    if age is None:
+        missing.append("同意取得時の年齢")
+    if primary_size_pre is None:
+        missing.append("原発巣：診断時_最大径")
+    if primary_size_post is None:
+        missing.append("原発巣：手術前_最大径")
+    
+    if missing:
+        st.error(f"判定できません。以下の必須項目を入力してください: {', '.join(missing)}")
+    else:
+        # ロジック判定
+        reasons = []
+        if age < 20:
+            reasons.append("年齢20歳未満")
+        if ps == "2以上（不適）":
+            reasons.append("PS不良")
+        
+        # Stage IV判定
+        is_stage_iv = (ct == "cT4") or (cn not in ["選択なし", "cN0"]) or (cm == "cM1")
+        if not is_stage_iv:
+            reasons.append("Stage IV条件未充足")
+            
+        if cm == "cM1" and cm1_basis in ["該当なし", "選択なし"]:
+            reasons.append("cM1登録根拠不足")
+        
+        if best_effect == "PD" or recist_op == "PD（不適）":
+            reasons.append("PD(病勢進行)")
+            
+        if any(v == "あり（不適）" for v in [vessel, organ, other_cancer, pregnancy]):
+            reasons.append("除外基準に抵触")
+
+        # 縮小率計算
+        pri_red = ((primary_size_post - primary_
