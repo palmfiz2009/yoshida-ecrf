@@ -4,8 +4,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# 施設リスト（計画書記載の全施設）
-HOSPITALS = ["愛知県がんセンター", "秋田大学", "愛媛大学", "大分大学", "大阪公立大学", "大阪大学", "大阪府済生会野江病院", "岡山大学病院", "香川大学", "鹿児島大学", "関西医科大学", "岐阜大学医学部附属病院", "九州大学病院", "京都大学", "久留米大学", "神戸大学", "国立がん研究センター中央病院", "国立病院機構四国がんセンター", "札幌医科大学", "千葉大学", "筑波大学", "東京科学大学", "東京慈恵会医科大学附属柏病院", "東京慈恵会医科大学附属病院", "東北大学", "鳥取大学", "富山大学附属病院", "長崎大学病院", "名古屋大学", "奈良県立医科大学", "新潟大学大学院 医歯学総合研究科", "浜松医科大学", "原三信病院", "兵庫医科大学", "弘前大学医学部附属病院", "北海道大学", "三重大学", "三重大学", "横浜市立大学附属病院", "琉球大学病院", "和歌山県立医科大学"]
+# 施設リスト
+HOSPITALS = ["愛知県がんセンター", "秋田大学", "愛媛大学", "大分大学", "大阪公立大学", "大阪大学", "大阪府済生会野江病院", "岡山大学病院", "香川大学", "鹿児島大学", "関西医科大学", "岐阜大学医学部附属病院", "九州大学病院", "京都大学", "久留米大学", "神戸大学", "国立がん研究センター中央病院", "国立病院機構四国がんセンター", "札幌医科大学", "千葉大学", "筑波大学", "東京科学大学", "東京慈恵会医科大学附属柏病院", "東京慈恵会医科大学附属病院", "東北大学", "鳥取大学", "富山大学附属病院", "長崎大学病院", "名古屋大学", "奈良県立医科大学", "新潟大学大学院 医歯学総合研究科", "浜松医科大学", "原三信病院", "兵庫医科大学", "弘前大学医学部附属病院", "北海道大学", "三重大学", "横浜市立大学附属病院", "琉球大学病院", "和歌山県立医科大学"]
 
 st.set_page_config(page_title="JUOG UTUC_Conlidative CRF", layout="wide")
 
@@ -22,7 +22,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# エラー内容をテキストで返すように変更
 def send_result_email(content):
     try:
         mail_user = st.secrets["email"]["user"]
@@ -41,7 +40,7 @@ def send_result_email(content):
 
 st.title("JUOG UTUC_Conlidative 登録用CRF")
 
-# 初期化（エラー防止）
+# 初期化
 m_pre_total, m_post_total = 0.0, 0.0
 sz1, sz2, sz3 = 0.0, 0.0, 0.0
 mp1, mp2, mp3 = 0.0, 0.0, 0.0
@@ -77,7 +76,7 @@ with c4:
     cn = st.selectbox("診断時_cN*", ["選択してください", "cN0", "cN1", "cN2", "cN3"])
     cm = st.selectbox("診断時_cM*", ["選択してください", "cM0", "cM1"])
 
-# --- 3. 転移巣情報 (cM1症例のみ表示) ---
+# --- 3. 転移巣情報 ---
 if cm == "cM1":
     st.header("3. 転移巣情報 (cM1症例のみ)")
     mc1, mc2 = st.columns(2)
@@ -85,15 +84,12 @@ if cm == "cM1":
         s1 = st.selectbox("転移巣 部位①*", ["選択してください", "肺", "骨", "肝", "リンパ節", "その他"], key="s1")
         if s1 == "その他": sd1 = st.text_input("部位① 詳細", key="sd1")
         sz1 = st.number_input("大きさ① (診断時 mm)*", format="%.1f", value=0.0)
-        
         s2 = st.selectbox("転移巣 部位②", ["該当なし", "肺", "骨", "肝", "リンパ節", "その他"], key="s2")
         if s2 == "その他": sd2 = st.text_input("部位② 詳細", key="sd2")
         sz2 = st.number_input("大きさ② (mm)", format="%.1f", value=0.0)
-
         s3 = st.selectbox("転移巣 部位③", ["該当なし", "肺", "骨", "肝", "リンパ節", "その他"], key="s3")
         if s3 == "その他": sd3 = st.text_input("部位③ 詳細", key="sd3")
         sz3 = st.number_input("大きさ③ (mm)", format="%.1f", value=0.0)
-        
         m_pre_total = sz1 + sz2 + sz3
         st.info(f"転移巣 診断時 合計: {m_pre_total:.1f} mm")
     with mc2:
@@ -110,11 +106,8 @@ with ce1:
     ev_dose = st.number_input("EV 初回量 (mg/kg)*", format="%.2f", value=None)
     reduction = st.radio("EV 減量の有無*", ["なし", "あり"], index=None, horizontal=True)
     if reduction == "あり": red_det = st.text_area("減量の詳細")
-    
-    # ▼▼▼ Pembro中止の選択肢変更と詳細欄追加 ▼▼▼
     pembro_stop = st.radio("irAEによるPembro中止の有無*", ["なし", "あり"], index=None, horizontal=True)
     if pembro_stop == "あり": pembro_stop_det = st.text_area("中止の詳細")
-    
 with ce2:
     courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
     courses_reason = st.text_input("3コース未満の場合：理由")
@@ -163,20 +156,30 @@ if st.button("適格性を判定する", type="primary", use_container_width=Tru
     if missing: st.error(f"入力漏れがあります: {', '.join(missing)}")
     else:
         reasons = []
-        if cm == "cM1" and cned_date and cned_date > (consent_date - timedelta(days=90)): reasons.append("cNED 3ヶ月ルール不備")
-        if eval_date < (evp_start + timedelta(weeks=9)): reasons.append("評価時期不足(9週間)")
-        if res_recist == "PD" or best_effect == "PD": reasons.append("PD(病勢進行)")
-        if any(v == "あり（不適）" for v in [vessel, organ, ae, other_cancer, pregnancy]): reasons.append("除外基準抵触")
+        # 適格性ロジック（個別化）
+        if cm == "cM1" and cned_date and cned_date > (consent_date - timedelta(days=90)): reasons.append("cNED後3ヶ月の維持期間不足")
+        if eval_date < (evp_start + timedelta(weeks=9)): reasons.append("EVP開始から評価までの期間不足(9週間未満)")
+        if res_recist == "PD" or best_effect == "PD": reasons.append("病勢進行(PD)による不適格")
+        if ps == "2以上（不適）": reasons.append("ECOG PSが2以上")
+        
+        # 除外基準の個別チェック（ここが修正ポイント！）
+        if vessel == "あり（不適）": reasons.append("除外基準：切除不能な血管浸潤")
+        if organ == "あり（不適）": reasons.append("除外基準：切除不能な臓器浸潤")
+        if ae == "あり（不適）": reasons.append("除外基準：Grade 3以上の未回復有害事象")
+        if other_cancer == "あり（不適）": reasons.append("除外基準：活動性の重複がん")
+        if pregnancy == "あり（不適）": reasons.append("除外基準：妊娠・授乳・同意困難等")
         
         res_final = "【適格】" if not reasons else "【不適格】"
         
-        # 全データ書き出し用レポート
+        # レポート作成
+        reason_text = "\n".join([f"・{r}" for r in reasons]) if reasons else "なし"
         report = f"""【JUOG eCRF 判定レポート】
 施設: {facility}
 ID: {patient_id}
 判定: {res_final}
 RECIST: {res_recist}
-理由: {', '.join(reasons) if reasons else 'なし'}
+判定理由:
+{reason_text}
 
 --- 全入力データ ---
 同意取得日: {consent_date}
@@ -232,12 +235,18 @@ EVP 総投与コース数: {courses}
 """
         st.session_state.report = report
         
+        # 画面表示
         st.markdown(f'<div class="result-section"><h3>判定結果: {res_final}</h3>', unsafe_allow_html=True)
-        if not reasons: st.success("登録可能です。"); st.balloons()
-        else: st.error("登録対象外です。"); [st.write(f"・{r}") for r in reasons]
+        if not reasons: 
+            st.success("登録可能です。")
+            st.balloons()
+        else: 
+            st.error("登録対象外です。以下の項目を確認してください：")
+            for r in reasons:
+                st.write(f"❌ {r}")
         
         c_dl1, c_dl2 = st.columns(2)
-        html_content = f"<html><body><h3>JUOG レポート</h3><p>施設: {facility}<br>ID: {patient_id}<br>判定: {res_final}<br>RECIST: {res_recist}<br>理由: {', '.join(reasons) if reasons else 'なし'}</p><hr><h4>全入力データ</h4><pre style='font-family:sans-serif;'>{report.split('--- 全入力データ ---')[1]}</pre></body></html>"
+        html_content = f"<html><body><h3>JUOG レポート</h3><p>施設: {facility}<br>ID: {patient_id}<br>判定: {res_final}<br>RECIST: {res_recist}<br>理由: {reason_text.replace(chr(10), '<br>')}</p><hr><h4>全入力データ</h4><pre style='font-family:sans-serif;'>{report.split('--- 全入力データ ---')[1]}</pre></body></html>"
         with c_dl1: st.download_button("📄 印刷用レポート(HTML)保存", html_content, file_name=f"Report_{patient_id}.html", mime="text/html")
         with c_dl2: st.download_button("💾 控え(TXT)保存", report, file_name=f"Report_{patient_id}.txt")
         st.markdown('</div>', unsafe_allow_html=True)
