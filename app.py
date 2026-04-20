@@ -102,9 +102,9 @@ with ce1:
     evp_start = st.date_input("EVP 初回投与日*", value=None)
     evp_end = st.date_input("EVP 最終投与日*", value=None)
     ev_dose = st.number_input("EV 初回量 (mg/kg)*", format="%.2f", value=None)
-    pembro_dose = st.number_input("Pembro 初回量 (mg/kg)*", format="%.2f", value=None)
-    reduction = st.radio("EVP 減量の有無*", ["なし", "あり"], index=None, horizontal=True)
+    reduction = st.radio("EV 減量の有無*", ["なし", "あり"], index=None, horizontal=True)
     if reduction == "あり": st.text_area("減量の詳細")
+    pembro_stop = st.radio("irAEによるPembro中止の有無*", ["なし", "あり", "あり_再開"], index=None, horizontal=True)
 with ce2:
     courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
     courses_reason = st.text_input("3コース未満の場合：理由")
@@ -147,7 +147,8 @@ with cx2:
 # --- 判定ロジック ---
 if st.button("適格性を判定する", type="primary", use_container_width=True):
     missing = []
-    if any(v is None for v in [age, gender, height, weight, consent_date, diag_date, evp_start, eval_date, primary_size_pre, primary_size_post]): missing.append("必須項目の未入力")
+    # pembro_stop を必須項目としてバリデーションに追加
+    if any(v is None for v in [age, gender, height, weight, consent_date, diag_date, evp_start, eval_date, primary_size_pre, primary_size_post, pembro_stop]): missing.append("必須項目の未入力")
     if cm == "cM1" and s1 == "選択してください": missing.append("転移巣部位①の選択")
     
     if missing: st.error(f"入力漏れがあります: {', '.join(missing)}")
