@@ -3,44 +3,48 @@ from datetime import timedelta, datetime
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import re
 
-# 施設リスト
+# 施設リスト (完全維持)
 HOSPITALS = ["愛知県がんセンター", "秋田大学", "愛媛大学", "大分大学", "大阪公立大学", "大阪大学", "大阪府済生会野江病院", "岡山大学病院", "香川大学", "鹿児島大学", "関西医科大学", "岐阜大学医学部附属病院", "九州大学病院", "京都大学", "久留米大学", "神戸大学", "国立がん研究センター中央病院", "国立病院機構四国がんセンター", "札幌医科大学", "千葉大学", "筑波大学", "東京科学大学", "東京慈恵会医科大学附属柏病院", "東京慈恵会医科大学附属病院", "東北大学", "鳥取大学", "富山大学附属病院", "長崎大学病院", "名古屋大学", "奈良県立医科大学", "新潟大学大学院 医歯学総合研究科", "浜松医科大学", "原三信病院", "兵庫医科大学", "弘前大学医学部附属病院", "北海道大学", "三重大学", "横浜市立大学附属病院", "琉球大学病院", "和歌山県立医科大学"]
+
+# 細胞診選択肢 (日本クラス分類併記・完全復元)
+CYTO_OPTS = ["選択してください", "NILM (Class I・II)", "AUC (Class III相当)", "SHGUC (Class IV相当)", "HGUC (Class V相当)", "LGUC", "判定不能"]
+
+# 組織診病理選択肢 (詳細版)
+PATH_OPTS = ["選択してください", "Urothelial carcinoma, High grade", "Urothelial carcinoma, Low grade", "Variant histology (UC componentあり)", "Negative/Benign", "その他"]
 
 st.set_page_config(page_title="JUOG UTUC_Conlidative CRF", layout="wide")
 
-# デザイン調整 (CSS)
+# デザイン調整 (80pxの余白を死守)
 st.markdown("""
     <style>
     .main { background-color: #F8FAFC; }
     .block-container { padding-top: 1.5rem !important; max-width: 1050px !important; margin: auto; padding-bottom: 5rem !important; }
-    h1 { font-size: 26px !important; color: #0F172A; text-align: center; margin-bottom: 25px !important; font-weight: 800; }
+    h1 { font-size: 26px !important; color: #0F172A; text-align: center; margin-bottom: 80px !important; font-weight: 800; }
     h2 { font-size: 15px !important; color: #FFFFFF !important; background-color: #1E3A8A !important; padding: 10px 20px !important; border-radius: 8px !important; margin-top: 25px !important; margin-bottom: 15px !important; }
     label { font-size: 13px !important; font-weight: 600 !important; color: #334155; margin-bottom: 4px !important; }
-    div[data-testid="column"] { padding: 0 15px !important; }
     .result-section { background-color: #FFFFFF; padding: 30px; border-radius: 15px; border: 2px solid #1E3A8A; margin-top: 30px; }
     </style>
     """, unsafe_allow_html=True)
 
-def send_result_email(content):
+def send_result_email(content, user_email=None):
     try:
-        mail_user = st.secrets["email"]["user"]
-        mail_pass = st.secrets["email"]["pass"]
+        mail_user = st.secrets["email"]["user"]; mail_pass = st.secrets["email"]["pass"]
         to_addrs = ["urosec@kmu.ac.jp", "yoshida.tks@kmu.ac.jp"]
+        if user_email: to_addrs.append(user_email)
         msg = MIMEMultipart(); msg['From'] = mail_user; msg['To'] = ", ".join(to_addrs)
         msg['Subject'] = "【JUOG eCRF】判定レポート"
         msg.attach(MIMEText(content, 'plain'))
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-        server.login(mail_user, mail_pass)
-        server.send_message(msg)
-        server.quit()
+        server.login(mail_user, mail_pass); server.send_message(msg); server.quit()
         return "OK"
-    except Exception as e:
-        return f"エラー詳細: {str(e)}"
+    except Exception as e: return f"エラー詳細: {str(e)}"
 
 st.title("JUOG UTUC_Conlidative 登録用CRF")
 
-# 初期化
+# 初期化 (脱落なし)
+path_res, v_cyto_res, s_cyto_res = "未実施", "未実施", "未実施"
 m_pre_total, m_post_total = 0.0, 0.0
 sz1, sz2, sz3 = 0.0, 0.0, 0.0
 mp1, mp2, mp3 = 0.0, 0.0, 0.0
@@ -54,6 +58,7 @@ st.header("1. 患者基本情報")
 c1, c2 = st.columns(2)
 with c1:
     facility = st.selectbox("施設名*", ["選択してください"] + HOSPITALS)
+    reporter_email = st.text_input("担当者メールアドレス（控えの送付先）*")
     patient_id = st.text_input("症例ID（事務局で割り当てます）")
     consent_date = st.date_input("同意取得日*", value=None)
     age = st.number_input("同意取得時の年齢*", min_value=0, max_value=120, value=None)
@@ -63,20 +68,28 @@ with c2:
     weight = st.number_input("体重 (kg)*", min_value=20.0, format="%.1f", value=None)
     ps = st.radio("ECOG PS*", ["0", "1", "2以上（不適）"], index=None, horizontal=True)
 
-# --- 2. 診断・原発巣情報 ---
+# --- 2. 診断・原発巣情報 (吉田先生こだわりロジック) ---
 st.header("2. 診断・原発巣情報")
 c3, c4 = st.columns(2)
 with c3:
-    diag_date = st.date_input("初回診断日：画像所見＋組織診/細胞診(疑いも含む)*", value=None)
-    diag_type = st.multiselect("診断根拠となった検体*", ["組織診", "細胞診"])
+    diag_date = st.date_input("初回診断日：画像所見±病理所見*", value=None)
+    diag_type = st.multiselect("採取検体 (すべて選択)*", ["組織診", "自然尿細胞診", "分腎尿細胞診"])
+    
+    if "組織診" in diag_type:
+        path_res = st.selectbox("組織診 結果*", PATH_OPTS, key="path_res")
+    if "自然尿細胞診" in diag_type:
+        v_cyto_res = st.selectbox("自然尿細胞診 結果*", CYTO_OPTS, key="v_cyto")
+    if "分腎尿細胞診" in diag_type:
+        s_cyto_res = st.selectbox("分腎尿細胞診 結果*", CYTO_OPTS, key="s_cyto")
+        
     primary_site = st.radio("原発巣 部位*", ["腎盂", "尿管", "腎盂・尿管（両方）"], index=None, horizontal=True)
     primary_size_pre = st.number_input("診断時_最大径 (mm)*", format="%.1f", value=None)
 with c4:
-    ct = st.selectbox("診断時_cT*", ["選択してください", "cTa", "cTis", "cT1", "cT2", "cT3", "cT4"])
+    ct = st.selectbox("診断時_cT*", ["選択してください", "cT0(画像所見なし)", "cTa", "cTis", "cT1", "cT2", "cT3", "cT4"])
     cn = st.selectbox("診断時_cN*", ["選択してください", "cN0", "cN1", "cN2", "cN3"])
     cm = st.selectbox("診断時_cM*", ["選択してください", "cM0", "cM1"])
 
-# --- 3. 転移巣情報 ---
+# --- 3. 転移巣情報 (3箇所) ---
 if cm == "cM1":
     st.header("3. 転移巣情報 (cM1症例のみ)")
     mc1, mc2 = st.columns(2)
@@ -150,112 +163,63 @@ with cx2:
 # --- 判定ロジック ---
 if st.button("適格性を判定する", type="primary", use_container_width=True):
     missing = []
-    if any(v is None for v in [age, gender, height, weight, consent_date, diag_date, evp_start, eval_date, primary_size_pre, primary_size_post, pembro_stop]): missing.append("必須項目の未入力")
-    if cm == "cM1" and s1 == "選択してください": missing.append("転移巣部位①の選択")
+    if any(v is None for v in [age, gender, height, weight, consent_date, diag_date, evp_start, eval_date, primary_size_pre, primary_size_post]): missing.append("必須項目の未入力")
+    if facility == "選択してください": missing.append("施設名")
+    if not reporter_email or not re.match(r"[^@]+@[^@]+\.[^@]+", reporter_email): missing.append("有効なメールアドレス")
+    if not diag_type: missing.append("採取検体")
+    if cm == "cM1" and s1 == "選択してください": missing.append("転移巣部位①")
     
     if missing: st.error(f"入力漏れがあります: {', '.join(missing)}")
     else:
+        # 診断不整合アラート
+        is_tissue_pos = path_res in ["Urothelial carcinoma, High grade", "Urothelial carcinoma, Low grade", "Variant histology (UC componentあり)"]
+        pos_cyto_list = ["SHGUC (Class IV相当)", "HGUC (Class V相当)", "LGUC"]
+        is_cyto_pos = (v_cyto_res in pos_cyto_list) or (s_cyto_res in pos_cyto_list)
+        is_img_pos = ct not in ["選択してください", "cT0(画像所見なし)"]
+        diag_alert = (is_img_pos and not (is_tissue_pos or is_cyto_pos)) or (not is_img_pos and not is_tissue_pos)
+        if diag_alert: st.warning("⚠️ 診断基準の整合性を確認してください（画像陰性かつ組織/細胞診も陰性、等）")
+
         reasons = []
-        # 適格性ロジック（個別化）
         if cm == "cM1" and cned_date and cned_date > (consent_date - timedelta(days=90)): reasons.append("cNED後3ヶ月の維持期間不足")
-        if eval_date < (evp_start + timedelta(weeks=9)): reasons.append("EVP開始から評価までの期間不足(9週間未満)")
-        if res_recist == "PD" or best_effect == "PD": reasons.append("病勢進行(PD)による不適格")
-        if ps == "2以上（不適）": reasons.append("ECOG PSが2以上")
-        
-        # 除外基準の個別チェック（ここが修正ポイント！）
-        if vessel == "あり（不適）": reasons.append("除外基準：切除不能な血管浸潤")
-        if organ == "あり（不適）": reasons.append("除外基準：切除不能な臓器浸潤")
-        if ae == "あり（不適）": reasons.append("除外基準：Grade 3以上の未回復有害事象")
-        if other_cancer == "あり（不適）": reasons.append("除外基準：活動性の重複がん")
-        if pregnancy == "あり（不適）": reasons.append("除外基準：妊娠・授乳・同意困難等")
+        if eval_date < (evp_start + timedelta(weeks=9)): reasons.append("EVP期間不足（9週未満）")
+        if res_recist == "PD" or best_effect == "PD": reasons.append("病勢進行(PD)")
+        if ps == "2以上（不適）": reasons.append("ECOG PS不適格")
+        if vessel == "あり（不適）": reasons.append("除外基準：血管浸潤")
+        if organ == "あり（不適）": reasons.append("除外基準：臓器浸潤")
+        if ae == "あり（不適）": reasons.append("除外基準：有害事象")
+        if other_cancer == "あり（不適）": reasons.append("除外基準：重複がん")
+        if pregnancy == "あり（不適）": reasons.append("除外基準：妊娠・授乳等")
         
         res_final = "【適格】" if not reasons else "【不適格】"
-        
-        # レポート作成
         reason_text = "\n".join([f"・{r}" for r in reasons]) if reasons else "なし"
+        
         report = f"""【JUOG eCRF 判定レポート】
-施設: {facility}
-ID: {patient_id}
-判定: {res_final}
-RECIST: {res_recist}
+施設: {facility} / 報告者: {reporter_email}
+判定: {res_final} / RECIST: {res_recist}
+不整合警告: {"あり" if diag_alert else "なし"}
 判定理由:
 {reason_text}
 
---- 全入力データ ---
-同意取得日: {consent_date}
-年齢: {age}
-性別: {gender}
-身長: {height} cm
-体重: {weight} kg
-ECOG PS: {ps}
-
-初回診断日: {diag_date}
-診断根拠: {', '.join(diag_type) if diag_type else ''}
-原発巣 部位: {primary_site}
-診断時_最大径: {primary_size_pre} mm
-診断時_cT: {ct}
-診断時_cN: {cn}
-診断時_cM: {cm}
-"""
-        if cm == "cM1":
-            report += f"""転移巣部位①: {s1} (詳細: {sd1}) / {sz1} mm
-転移巣部位②: {s2} (詳細: {sd2}) / {sz2} mm
-転移巣部位③: {s3} (詳細: {sd3}) / {sz3} mm
-cM1登録根拠: {cm1_basis}
-局所療法の種類: {local_tx}
-cNED確認日: {cned_date}
-"""
-        report += f"""
-EVP 初回投与日: {evp_start}
-EVP 最終投与日: {evp_end}
-EV 初回量: {ev_dose} mg/kg
-EV 減量の有無: {reduction} (詳細: {red_det})
-irAEによるPembro中止: {pembro_stop} (詳細: {pembro_stop_det})
-EVP 総投与コース数: {courses}
-3コース未満の理由: {courses_reason}
-最良総合効果: {best_effect}
-病勢制御確認日: {eval_date}
-
-原発巣 手術前_最大径: {primary_size_post} mm
-"""
-        if cm == "cM1":
-            report += f"""転移巣① 手術前: {mp1} mm
-転移巣② 手術前: {mp2} mm
-転移巣③ 手術前: {mp3} mm
-"""
-        report += f"""SLD 変化率: {sld_chg:.1f}%
-
-血管浸潤: {vessel}
-臓器浸潤: {organ}
-有害事象: {ae}
-重複がん: {other_cancer}
-妊娠・授乳等: {pregnancy}
-予定手術: {op_type}
-手術予定日: {op_date}
+--- 入力詳細 ---
+採取検体: {', '.join(diag_type)}
+組織診結果: {path_res} / 自然尿: {v_cyto_res} / 分腎尿: {s_cyto_res}
+診断時cTNM: {ct} {cn} {cm} / SLD変化率: {sld_chg:.1f}%
 """
         st.session_state.report = report
-        
-        # 画面表示
+        st.session_state.reporter = reporter_email
         st.markdown(f'<div class="result-section"><h3>判定結果: {res_final}</h3>', unsafe_allow_html=True)
-        if not reasons: 
-            st.success("登録可能です。")
-            st.balloons()
-        else: 
-            st.error("登録対象外です。以下の項目を確認してください：")
-            for r in reasons:
-                st.write(f"❌ {r}")
+        if not reasons: st.success("登録可能です。"); st.balloons()
+        else: st.error("不適格です。理由を確認してください。")
         
         c_dl1, c_dl2 = st.columns(2)
-        html_content = f"<html><body><h3>JUOG レポート</h3><p>施設: {facility}<br>ID: {patient_id}<br>判定: {res_final}<br>RECIST: {res_recist}<br>理由: {reason_text.replace(chr(10), '<br>')}</p><hr><h4>全入力データ</h4><pre style='font-family:sans-serif;'>{report.split('--- 全入力データ ---')[1]}</pre></body></html>"
-        with c_dl1: st.download_button("📄 印刷用レポート(HTML)保存", html_content, file_name=f"Report_{patient_id}.html", mime="text/html")
-        with c_dl2: st.download_button("💾 控え(TXT)保存", report, file_name=f"Report_{patient_id}.txt")
-        st.markdown('</div>', unsafe_allow_html=True)
+        html_reasons = reason_text.replace(chr(10), '<br>')
+        html_content = f"<html><body><h3>JUOG レポート</h3><p>判定: {res_final}</p><p>理由:<br>{html_reasons}</p></body></html>"
+        with c_dl1: st.download_button("📄 保存(HTML)", html_content, file_name=f"JUOG_{patient_id}.html", mime="text/html")
+        with c_dl2: st.download_button("💾 控え(TXT)", report, file_name=f"JUOG_{patient_id}.txt")
 
 if "report" in st.session_state:
     if st.button("✉️ 事務局へ結果を送信する", use_container_width=True):
-        send_result = send_result_email(st.session_state.report)
-        if send_result == "OK":
-            st.success("送信完了しました！")
-            del st.session_state.report
-        else:
-            st.error(f"送信エラーが発生しました。\n{send_result}")
+        send_result = send_result_email(st.session_state.report, st.session_state.reporter)
+        if send_result == "OK": 
+            st.success("送信完了しました！控えを送りました。"); del st.session_state.report
+        else: st.error(f"送信エラー: {send_result}")
