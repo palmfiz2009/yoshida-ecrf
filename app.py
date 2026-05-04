@@ -117,6 +117,12 @@ with ce2:
     courses_reason = st.text_input("3コース未満の場合：理由")
     best_effect = st.selectbox("EVP 最良総合効果*", ["選択してください", "CR", "PR", "SD", "PD"])
     eval_date = st.date_input("病勢制御確認日 (SDの場合は画像初回日)*", value=None)
+    
+    # --- 修正点①：評価日に関する9週間のリアルタイムアラート ---
+    if evp_start and eval_date:
+        min_9w_date = evp_start + timedelta(weeks=9)
+        if eval_date < min_9w_date:
+            st.warning(f"⚠️ 時期が早すぎます。プロトコル上、評価は9週間（**{min_9w_date.strftime('%Y/%m/%d')} 以降**）が推奨されます。")
 
 # --- 5. 手術前評価 & RECIST判定 ---
 st.header("5. 手術前評価 & RECIST判定")
@@ -129,7 +135,6 @@ with cp1:
         mp3 = st.number_input("転移巣③ 手術前 (mm)", format="%.1f", value=None, help=RECIST_HELP)
         m_post_total = (mp1 or 0.0) + (mp2 or 0.0) + (mp3 or 0.0)
 with cp2:
-    # --- 修正点：空欄（None）をCRと誤判定させないブロック処理 ---
     res_recist, sld_chg = "未入力", 0.0
     pre_sum = (primary_size_pre or 0.0) + m_pre_total
     
@@ -152,7 +157,9 @@ with cp2:
             st.metric("SLD 変化率", f"{sld_chg:.1f}%")
             st.markdown(f"RECIST判定: **{res_recist}**")
     else:
+        # --- 修正点②：標的病変がない場合の仕様明記 ---
         st.markdown("RECIST判定: **標的病変なし (SLD計算不可)**")
+        st.info("💡 測定可能な標的病変がない（非標的病変のみ等の）場合、SLDの自動計算は行われません。左記の「EVP 最良総合効果」の入力を用いて適格性（PD以外か）の判定を行います。")
 
 # --- 6. 除外基準 & 手術予定 ---
 st.header("6. 除外基準 & 手術予定")
@@ -166,6 +173,12 @@ with cx2:
     proxy_consent = st.radio("同意取得の形態（代諾者のみは不適格）*", ["本人同意", "代諾者のみ（不適）"], index=None, horizontal=True)
     op_type = st.selectbox("予定している手術*", ["選択なし", "根治的腎尿管全摘除術", "尿管部分切除術"])
     op_date = st.date_input("手術予定日", value=None)
+    
+    # --- 修正点③：手術日に関する9週間のリアルタイムアラート ---
+    if evp_start and op_date:
+        min_9w_date = evp_start + timedelta(weeks=9)
+        if op_date < min_9w_date:
+            st.warning(f"⚠️ 時期が早すぎます。手術は9週間（**{min_9w_date.strftime('%Y/%m/%d')} 以降**）の実施が推奨されます。")
 
 # --- 判定ロジック ---
 if st.button("適格性を判定する", type="primary", use_container_width=True):
