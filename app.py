@@ -51,8 +51,8 @@ sd1, sd2, sd3 = "", "", ""
 cm1_basis, local_tx, red_det, pembro_stop_det = "", "", "", ""
 cned_date = None
 
-# --- RECIST用 共通ヘルプテキスト ---
-RECIST_HELP = "【RECIST 1.1 測定基準】\n・腫瘍病変：長径 10 mm以上を測定\n・リンパ節：短径 15 mm以上を測定\n\n※正確な測定が困難な「測定不能病変」は標的病変（Target Lesion）に含めず、ここには入力しないでください。"
+# --- 修正点①：RECIST用 共通ヘルプテキストに文言追加 ---
+RECIST_HELP = "【RECIST 1.1 測定基準】\n・腫瘍病変：少なくとも 1 方向で正確な測定が可能であり（測定断面における最大径（長径）を記録する）、長径 10 mm以上を測定\n・リンパ節：短径 15 mm以上を測定\n\n※正確な測定が困難な「測定不能病変」は標的病変（Target Lesion）に含めず、ここには数値を入力しないで（空欄のままにして）ください。"
 
 # --- 1. 患者基本情報 ---
 st.header("1. 患者基本情報")
@@ -108,10 +108,13 @@ with ce1:
     evp_start = st.date_input("EVP 初回投与日*", value=None)
     evp_end = st.date_input("EVP 最終投与日*", value=None)
     ev_dose = st.number_input("EV 初回量 (mg/kg)*", format="%.2f", value=None)
+    
     reduction = st.radio("EV 減量の有無*", ["なし", "あり"], index=None, horizontal=True)
     if reduction == "あり": red_det = st.text_area("減量の詳細", placeholder="例：Grade 3の末梢神経障害のため、Day8からEVを〇〇mg/kgに減量して継続")
+    
+    # --- 修正点③：Pembro中止のプレースホルダー変更 ---
     pembro_stop = st.radio("irAEによるPembro中止の有無*", ["なし", "あり"], index=None, horizontal=True)
-    if pembro_stop == "あり": pembro_stop_det = st.text_area("中止の詳細", placeholder="例：Grade 3のirAE腸炎（下痢）のため、3コース目でPembro投与を永久中止")
+    if pembro_stop == "あり": pembro_stop_det = st.text_area("中止の詳細", placeholder="例：Grade 3のirAE腸炎（下痢）のため、3コース目でPembro投与を中止")
 with ce2:
     courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
     courses_reason = st.text_input("3コース未満の場合：理由")
@@ -154,7 +157,11 @@ with cx2:
 # --- 判定ロジック ---
 if st.button("適格性を判定する", type="primary", use_container_width=True):
     missing = []
-    if any(v is None for v in [age, gender, height, weight, consent_date, diag_date, evp_start, eval_date, primary_size_pre, primary_size_post, pembro_stop]): missing.append("必須項目の未入力")
+    
+    # --- 修正点②：「primary_size_pre」「primary_size_post」を必須チェックから意図的に除外し、測定不能（空欄）でもエラーが出ないようにしました ---
+    if any(v is None for v in [age, gender, height, weight, consent_date, diag_date, evp_start, eval_date, pembro_stop]): 
+        missing.append("必須項目の未入力")
+        
     if not reporter_email: missing.append("担当者メールアドレス")
     if cm == "cM1" and s1 == "選択してください": missing.append("転移巣部位①の選択")
     
@@ -177,6 +184,9 @@ if st.button("適格性を判定する", type="primary", use_container_width=Tru
         reason_text = "\n".join([f"・{r}" for r in reasons]) if reasons else "なし"
         warning_text = "\n".join([f"・{w}" for w in warnings_list]) if warnings_list else "なし"
         
+        # 測定不能（空欄）の場合はレポートで「測定不能(空欄)」と表示するよう配慮
+        disp_primary_pre = f"{primary_size_pre} mm" if primary_size_pre is not None else "測定不能(空欄)"
+        
         report = f"""【JUOG eCRF 判定レポート】
 施設: {facility}
 メールアドレス: {reporter_email}
@@ -196,7 +206,7 @@ ECOG PS: {ps}
 初回診断日: {diag_date}
 診断根拠: {', '.join(diag_type) if diag_type else ''}
 原発巣 部位: {primary_site}
-診断時_最大径: {primary_size_pre} mm
+診断時_最大径: {disp_primary_pre}
 診断時_cT: {ct}
 診断時_cN: {cn}
 診断時_cM: {cm}
