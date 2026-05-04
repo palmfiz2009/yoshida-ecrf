@@ -51,7 +51,7 @@ sd1, sd2, sd3 = "", "", ""
 cm1_basis, local_tx, red_det, pembro_stop_det = "", "", "", ""
 cned_date = None
 
-# --- RECIST用 共通ヘルプテキスト（リンパ節の記載を削除） ---
+# --- RECIST用 共通ヘルプテキスト ---
 RECIST_HELP = "【RECIST 1.1 測定基準】\n・腫瘍病変：少なくとも 1 方向で正確な測定が可能であり（測定断面における最大径（長径）を記録する）、長径 10 mm以上を測定\n\n※正確な測定が困難な「測定不能病変」は標的病変（Target Lesion）に含めず、ここには数値を入力しないで（空欄のままにして）ください。"
 
 # --- 1. 患者基本情報 ---
@@ -253,7 +253,10 @@ RECIST判定: {res_recist} (SLD変化率: {sld_chg:.1f}%)
                 for w in warnings_list: st.warning(f"⚠️ 確認事項: {w}")
                 st.info("💡 確認事項がありますが、送信は可能です。内容をご確認の上、下のボタンから送信してください。")
         else: 
-            st.error("登録対象外です。"); [st.write(f"❌ {r}") for r in reasons]
+            st.error("登録対象外です。")
+            # --- 修正点：謎の[0:NULL]が出ないようにループ処理を修正 ---
+            for r in reasons:
+                st.markdown(f"❌ {r}")
         
         c_dl1, c_dl2 = st.columns(2)
         with c_dl1: st.download_button("📄 印刷用レポート(HTML)保存", f"<html><body><h3>JUOG レポート</h3><pre>{report}</pre></body></html>", file_name="Report.html", mime="text/html")
