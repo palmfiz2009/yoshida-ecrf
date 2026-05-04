@@ -27,7 +27,6 @@ def send_result_email(content, reporter_mail=""):
         mail_user = st.secrets["email"]["user"]
         mail_pass = st.secrets["email"]["pass"]
         to_addrs = ["urosec@kmu.ac.jp", "yoshida.tks@kmu.ac.jp"]
-        # 担当者のアドレスが入力されていれば、控えとして追加送信
         if reporter_mail:
             to_addrs.append(reporter_mail)
         msg = MIMEMultipart(); msg['From'] = mail_user; msg['To'] = ", ".join(to_addrs)
@@ -41,7 +40,6 @@ def send_result_email(content, reporter_mail=""):
     except Exception as e:
         return f"エラー詳細: {str(e)}"
 
-# --- 修正点①：アプリのタイトル変更 ---
 st.title("JUOG UTUC_Consolidative 登録判定CRF")
 
 # 初期化
@@ -52,6 +50,9 @@ s1, s2, s3 = "", "", ""
 sd1, sd2, sd3 = "", "", ""
 cm1_basis, local_tx, red_det, pembro_stop_det = "", "", "", ""
 cned_date = None
+
+# --- RECIST用 共通ヘルプテキスト ---
+RECIST_HELP = "【RECIST 1.1 測定基準】\n・腫瘍病変：長径 10 mm以上を測定\n・リンパ節：短径 15 mm以上を測定\n\n※正確な測定が困難な「測定不能病変」は標的病変（Target Lesion）に含めず、ここには入力しないでください。"
 
 # --- 1. 患者基本情報 ---
 st.header("1. 患者基本情報")
@@ -74,7 +75,7 @@ with c3:
     diag_date = st.date_input("初回診断日*", value=None)
     diag_type = st.multiselect("診断根拠となった検体*", ["組織診", "細胞診"])
     primary_site = st.radio("原発巣 部位*", ["腎盂", "尿管", "腎盂・尿管（両方）"], index=None, horizontal=True)
-    primary_size_pre = st.number_input("診断時_最大径 (mm)*", format="%.1f", value=None)
+    primary_size_pre = st.number_input("診断時_最大径 (mm)*", format="%.1f", value=None, help=RECIST_HELP)
 with c4:
     ct = st.selectbox("診断時_cT*", ["選択してください", "cTa", "cTis", "cT1", "cT2", "cT3", "cT4"])
     cn = st.selectbox("診断時_cN*", ["選択してください", "cN0", "cN1", "cN2", "cN3"])
@@ -87,13 +88,13 @@ if cm == "cM1":
     with mc1:
         s1 = st.selectbox("転移巣 部位①*", ["選択してください", "肺", "骨", "肝", "リンパ節", "その他"], key="s1")
         if s1 == "その他": sd1 = st.text_input("部位① 詳細")
-        sz1 = st.number_input("大きさ① (診断時 mm)*", format="%.1f", value=None)
+        sz1 = st.number_input("大きさ① (診断時 mm)*", format="%.1f", value=None, help=RECIST_HELP)
         s2 = st.selectbox("転移巣 部位②", ["該当なし", "肺", "骨", "肝", "リンパ節", "その他"], key="s2")
         if s2 == "その他": sd2 = st.text_input("部位② 詳細")
-        sz2 = st.number_input("大きさ② (mm)", format="%.1f", value=None)
+        sz2 = st.number_input("大きさ② (mm)", format="%.1f", value=None, help=RECIST_HELP)
         s3 = st.selectbox("転移巣 部位③", ["該当なし", "肺", "骨", "肝", "リンパ節", "その他"], key="s3")
         if s3 == "その他": sd3 = st.text_input("部位③ 詳細")
-        sz3 = st.number_input("大きさ③ (mm)", format="%.1f", value=None)
+        sz3 = st.number_input("大きさ③ (mm)", format="%.1f", value=None, help=RECIST_HELP)
         m_pre_total = (sz1 or 0.0) + (sz2 or 0.0) + (sz3 or 0.0)
     with mc2:
         cm1_basis = st.selectbox("ｃM1症例 登録根拠*", ["選択してください", "EVP療法によりCR", "局所療法により消失、3か月維持"])
@@ -107,12 +108,10 @@ with ce1:
     evp_start = st.date_input("EVP 初回投与日*", value=None)
     evp_end = st.date_input("EVP 最終投与日*", value=None)
     ev_dose = st.number_input("EV 初回量 (mg/kg)*", format="%.2f", value=None)
-    
-    # --- 修正点③：減量・中止のプレースホルダー（記載例）追加 ---
     reduction = st.radio("EV 減量の有無*", ["なし", "あり"], index=None, horizontal=True)
-    if reduction == "あり": red_det = st.text_area("減量の詳細", placeholder="例：Grade3の末梢神経障害のため、Day8からEVを〇〇mg/kgに減量して継続")
+    if reduction == "あり": red_det = st.text_area("減量の詳細", placeholder="例：Grade 3の末梢神経障害のため、Day8からEVを〇〇mg/kgに減量して継続")
     pembro_stop = st.radio("irAEによるPembro中止の有無*", ["なし", "あり"], index=None, horizontal=True)
-    if pembro_stop == "あり": pembro_stop_det = st.text_area("中止の詳細", placeholder="例：Grade4の好中球減少および発熱性好中球減少症のため、2サイクル目Day1で投与を完全中止")
+    if pembro_stop == "あり": pembro_stop_det = st.text_area("中止の詳細", placeholder="例：Grade 3のirAE腸炎（下痢）のため、3コース目でPembro投与を永久中止")
 with ce2:
     courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
     courses_reason = st.text_input("3コース未満の場合：理由")
@@ -123,11 +122,11 @@ with ce2:
 st.header("5. 手術前評価 & RECIST判定")
 cp1, cp2 = st.columns(2)
 with cp1:
-    primary_size_post = st.number_input("原発巣 手術前_最大径 (mm)*", format="%.1f", value=None)
+    primary_size_post = st.number_input("原発巣 手術前_最大径 (mm)*", format="%.1f", value=None, help=RECIST_HELP)
     if cm == "cM1":
-        mp1 = st.number_input("転移巣① 手術前 (mm)*", format="%.1f", value=None)
-        mp2 = st.number_input("転移巣② 手術前 (mm)", format="%.1f", value=None)
-        mp3 = st.number_input("転移巣③ 手術前 (mm)", format="%.1f", value=None)
+        mp1 = st.number_input("転移巣① 手術前 (mm)*", format="%.1f", value=None, help=RECIST_HELP)
+        mp2 = st.number_input("転移巣② 手術前 (mm)", format="%.1f", value=None, help=RECIST_HELP)
+        mp3 = st.number_input("転移巣③ 手術前 (mm)", format="%.1f", value=None, help=RECIST_HELP)
         m_post_total = (mp1 or 0.0) + (mp2 or 0.0) + (mp3 or 0.0)
 with cp2:
     res_recist, sld_chg = "未入力", 0.0
@@ -147,7 +146,6 @@ with cx1:
     organ = st.radio("切除不能な臓器浸潤*", ["なし", "あり（不適）"], index=None, horizontal=True)
     ae = st.radio("Grade 3以上の未回復有害事象*", ["なし", "あり（不適）"], index=None, horizontal=True)
 with cx2:
-    # --- 修正点②：重複癌の詳細をhelpパラメータ（?ツールチップ）に変更 ---
     other_cancer = st.radio("活動性の重複がん*", ["なし", "あり（不適）"], index=None, horizontal=True, help="病勢が制御され予後評価に影響しないと判断される悪性腫瘍（筋層非浸潤性膀胱癌、早期前立腺癌、治癒切除済みの皮膚基底細胞癌など）は登録を許容する")
     proxy_consent = st.radio("同意取得の形態（代諾者のみは不適格）*", ["本人同意", "代諾者のみ（不適）"], index=None, horizontal=True)
     op_type = st.selectbox("予定している手術*", ["選択なし", "根治的腎尿管全摘除術", "尿管部分切除術"])
@@ -166,7 +164,6 @@ if st.button("適格性を判定する", type="primary", use_container_width=Tru
         warnings_list = []
         if cm == "cM1" and cm1_basis == "局所療法により消失、3か月維持":
             if cned_date and cned_date > (consent_date - timedelta(days=90)): reasons.append("cNED後3ヶ月の維持期間不足")
-        # 9週間未満をアラート（確認事項）に変更
         if eval_date < (evp_start + timedelta(weeks=9)): warnings_list.append("EVP開始から評価までの期間が9週間未満です")
         if res_recist == "PD" or best_effect == "PD": reasons.append("病勢進行(PD)による不適格")
         if ps == "2以上（不適）": reasons.append("ECOG PSが2以上")
