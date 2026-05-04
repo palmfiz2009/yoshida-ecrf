@@ -51,7 +51,7 @@ sd1, sd2, sd3 = "", "", ""
 cm1_basis, local_tx, red_det, pembro_stop_det = "", "", "", ""
 cned_date = None
 
-# --- 修正点①：RECIST用 共通ヘルプテキストに文言追加 ---
+# --- RECIST用 共通ヘルプテキスト ---
 RECIST_HELP = "【RECIST 1.1 測定基準】\n・腫瘍病変：少なくとも 1 方向で正確な測定が可能であり（測定断面における最大径（長径）を記録する）、長径 10 mm以上を測定\n・リンパ節：短径 15 mm以上を測定\n\n※正確な測定が困難な「測定不能病変」は標的病変（Target Lesion）に含めず、ここには数値を入力しないで（空欄のままにして）ください。"
 
 # --- 1. 患者基本情報 ---
@@ -108,11 +108,8 @@ with ce1:
     evp_start = st.date_input("EVP 初回投与日*", value=None)
     evp_end = st.date_input("EVP 最終投与日*", value=None)
     ev_dose = st.number_input("EV 初回量 (mg/kg)*", format="%.2f", value=None)
-    
     reduction = st.radio("EV 減量の有無*", ["なし", "あり"], index=None, horizontal=True)
     if reduction == "あり": red_det = st.text_area("減量の詳細", placeholder="例：Grade 3の末梢神経障害のため、Day8からEVを〇〇mg/kgに減量して継続")
-    
-    # --- 修正点③：Pembro中止のプレースホルダー変更 ---
     pembro_stop = st.radio("irAEによるPembro中止の有無*", ["なし", "あり"], index=None, horizontal=True)
     if pembro_stop == "あり": pembro_stop_det = st.text_area("中止の詳細", placeholder="例：Grade 3のirAE腸炎（下痢）のため、3コース目でPembro投与を中止")
 with ce2:
@@ -132,14 +129,30 @@ with cp1:
         mp3 = st.number_input("転移巣③ 手術前 (mm)", format="%.1f", value=None, help=RECIST_HELP)
         m_post_total = (mp1 or 0.0) + (mp2 or 0.0) + (mp3 or 0.0)
 with cp2:
+    # --- 修正点：空欄（None）をCRと誤判定させないブロック処理 ---
     res_recist, sld_chg = "未入力", 0.0
     pre_sum = (primary_size_pre or 0.0) + m_pre_total
-    post_sum = (primary_size_post or 0.0) + m_post_total
+    
     if pre_sum > 0:
-        sld_chg = ((post_sum - pre_sum) / pre_sum * 100)
-        res_recist = "PD" if sld_chg >= 20 else "PR" if sld_chg <= -30 else "CR" if post_sum == 0 else "SD"
-        st.metric("SLD 変化率", f"{sld_chg:.1f}%")
-        st.markdown(f"RECIST判定: **{res_recist}**")
+        missing_post = False
+        if (primary_size_pre is not None) and (primary_size_post is None): missing_post = True
+        if cm == "cM1":
+            if (sz1 is not None) and (mp1 is None): missing_post = True
+            if (sz2 is not None) and (mp2 is None): missing_post = True
+            if (sz3 is not None) and (mp3 is None): missing_post = True
+            
+        if missing_post:
+            res_recist = "NE（評価不能）"
+            st.warning("⚠️ 手術前のサイズが空欄の病変があります。完全に消失した場合は明示的に「0」を入力してください。")
+            st.markdown(f"RECIST判定: **{res_recist}**")
+        else:
+            post_sum = (primary_size_post or 0.0) + m_post_total
+            sld_chg = ((post_sum - pre_sum) / pre_sum * 100)
+            res_recist = "PD" if sld_chg >= 20 else "PR" if sld_chg <= -30 else "CR" if post_sum == 0 else "SD"
+            st.metric("SLD 変化率", f"{sld_chg:.1f}%")
+            st.markdown(f"RECIST判定: **{res_recist}**")
+    else:
+        st.markdown("RECIST判定: **標的病変なし (SLD計算不可)**")
 
 # --- 6. 除外基準 & 手術予定 ---
 st.header("6. 除外基準 & 手術予定")
@@ -157,8 +170,6 @@ with cx2:
 # --- 判定ロジック ---
 if st.button("適格性を判定する", type="primary", use_container_width=True):
     missing = []
-    
-    # --- 修正点②：「primary_size_pre」「primary_size_post」を必須チェックから意図的に除外し、測定不能（空欄）でもエラーが出ないようにしました ---
     if any(v is None for v in [age, gender, height, weight, consent_date, diag_date, evp_start, eval_date, pembro_stop]): 
         missing.append("必須項目の未入力")
         
@@ -184,7 +195,6 @@ if st.button("適格性を判定する", type="primary", use_container_width=Tru
         reason_text = "\n".join([f"・{r}" for r in reasons]) if reasons else "なし"
         warning_text = "\n".join([f"・{w}" for w in warnings_list]) if warnings_list else "なし"
         
-        # 測定不能（空欄）の場合はレポートで「測定不能(空欄)」と表示するよう配慮
         disp_primary_pre = f"{primary_size_pre} mm" if primary_size_pre is not None else "測定不能(空欄)"
         
         report = f"""【JUOG eCRF 判定レポート】
