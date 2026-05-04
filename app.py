@@ -51,8 +51,8 @@ sd1, sd2, sd3 = "", "", ""
 cm1_basis, local_tx, red_det, pembro_stop_det = "", "", "", ""
 cned_date = None
 
-# --- RECIST用 共通ヘルプテキスト ---
-RECIST_HELP = "【RECIST 1.1 測定基準】\n・腫瘍病変：少なくとも 1 方向で正確な測定が可能であり（測定断面における最大径（長径）を記録する）、長径 10 mm以上を測定\n・リンパ節：短径 15 mm以上を測定\n\n※正確な測定が困難な「測定不能病変」は標的病変（Target Lesion）に含めず、ここには数値を入力しないで（空欄のままにして）ください。"
+# --- RECIST用 共通ヘルプテキスト（リンパ節の記載を削除） ---
+RECIST_HELP = "【RECIST 1.1 測定基準】\n・腫瘍病変：少なくとも 1 方向で正確な測定が可能であり（測定断面における最大径（長径）を記録する）、長径 10 mm以上を測定\n\n※正確な測定が困難な「測定不能病変」は標的病変（Target Lesion）に含めず、ここには数値を入力しないで（空欄のままにして）ください。"
 
 # --- 1. 患者基本情報 ---
 st.header("1. 患者基本情報")
@@ -118,7 +118,6 @@ with ce2:
     best_effect = st.selectbox("EVP 最良総合効果*", ["選択してください", "CR", "PR", "SD", "PD"])
     eval_date = st.date_input("病勢制御確認日 (SDの場合は画像初回日)*", value=None)
     
-    # --- 修正点①：評価日に関する9週間のリアルタイムアラート ---
     if evp_start and eval_date:
         min_9w_date = evp_start + timedelta(weeks=9)
         if eval_date < min_9w_date:
@@ -157,7 +156,6 @@ with cp2:
             st.metric("SLD 変化率", f"{sld_chg:.1f}%")
             st.markdown(f"RECIST判定: **{res_recist}**")
     else:
-        # --- 修正点②：標的病変がない場合の仕様明記 ---
         st.markdown("RECIST判定: **標的病変なし (SLD計算不可)**")
         st.info("💡 測定可能な標的病変がない（非標的病変のみ等の）場合、SLDの自動計算は行われません。左記の「EVP 最良総合効果」の入力を用いて適格性（PD以外か）の判定を行います。")
 
@@ -174,7 +172,6 @@ with cx2:
     op_type = st.selectbox("予定している手術*", ["選択なし", "根治的腎尿管全摘除術", "尿管部分切除術"])
     op_date = st.date_input("手術予定日", value=None)
     
-    # --- 修正点③：手術日に関する9週間のリアルタイムアラート ---
     if evp_start and op_date:
         min_9w_date = evp_start + timedelta(weeks=9)
         if op_date < min_9w_date:
