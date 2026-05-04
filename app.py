@@ -41,7 +41,8 @@ def send_result_email(content, reporter_mail=""):
     except Exception as e:
         return f"エラー詳細: {str(e)}"
 
-st.title("JUOG UTUC_Consolidative 登録判定アプリ")
+# --- 修正点①：アプリのタイトル変更 ---
+st.title("JUOG UTUC_Consolidative 登録判定CRF")
 
 # 初期化
 m_pre_total, m_post_total = 0.0, 0.0
@@ -106,10 +107,12 @@ with ce1:
     evp_start = st.date_input("EVP 初回投与日*", value=None)
     evp_end = st.date_input("EVP 最終投与日*", value=None)
     ev_dose = st.number_input("EV 初回量 (mg/kg)*", format="%.2f", value=None)
+    
+    # --- 修正点③：減量・中止のプレースホルダー（記載例）追加 ---
     reduction = st.radio("EV 減量の有無*", ["なし", "あり"], index=None, horizontal=True)
-    if reduction == "あり": red_det = st.text_area("減量の詳細")
+    if reduction == "あり": red_det = st.text_area("減量の詳細", placeholder="例：Grade3の末梢神経障害のため、Day8からEVを〇〇mg/kgに減量して継続")
     pembro_stop = st.radio("irAEによるPembro中止の有無*", ["なし", "あり"], index=None, horizontal=True)
-    if pembro_stop == "あり": pembro_stop_det = st.text_area("中止の詳細")
+    if pembro_stop == "あり": pembro_stop_det = st.text_area("中止の詳細", placeholder="例：Grade4の好中球減少および発熱性好中球減少症のため、2サイクル目Day1で投与を完全中止")
 with ce2:
     courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
     courses_reason = st.text_input("3コース未満の場合：理由")
@@ -144,7 +147,8 @@ with cx1:
     organ = st.radio("切除不能な臓器浸潤*", ["なし", "あり（不適）"], index=None, horizontal=True)
     ae = st.radio("Grade 3以上の未回復有害事象*", ["なし", "あり（不適）"], index=None, horizontal=True)
 with cx2:
-    other_cancer = st.radio("活動性の重複がん（早期前立腺癌、治癒済みの皮膚癌等は除く）*", ["なし", "あり（不適）"], index=None, horizontal=True)
+    # --- 修正点②：重複癌の詳細をhelpパラメータ（?ツールチップ）に変更 ---
+    other_cancer = st.radio("活動性の重複がん*", ["なし", "あり（不適）"], index=None, horizontal=True, help="病勢が制御され予後評価に影響しないと判断される悪性腫瘍（筋層非浸潤性膀胱癌、早期前立腺癌、治癒切除済みの皮膚基底細胞癌など）は登録を許容する")
     proxy_consent = st.radio("同意取得の形態（代諾者のみは不適格）*", ["本人同意", "代諾者のみ（不適）"], index=None, horizontal=True)
     op_type = st.selectbox("予定している手術*", ["選択なし", "根治的腎尿管全摘除術", "尿管部分切除術"])
     op_date = st.date_input("手術予定日", value=None)
