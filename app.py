@@ -61,7 +61,8 @@ with c1:
     facility = st.selectbox("施設名*", ["選択してください"] + HOSPITALS)
     reporter_email = st.text_input("担当者メールアドレス*")
     consent_date = st.date_input("本人同意取得日*", value=None)
-    age = st.number_input("同意取得時の年齢*", min_value=0, max_value=120, value=None)
+    # --- 修正点①：年齢のラベル変更と、min_valueを20に設定 ---
+    age = st.number_input("同意取得時の年齢（20歳以上）*", min_value=20, max_value=120, value=None)
 with c2:
     gender = st.radio("性別*", ["男", "女"], index=None, horizontal=True)
     height = st.number_input("身長 (cm)*", min_value=100.0, format="%.1f", value=None)
@@ -75,7 +76,6 @@ with c3:
     diag_date = st.date_input("初回診断日*", value=None)
     diag_type = st.multiselect("診断根拠となった検体*", ["組織診", "細胞診"])
     
-    # --- 修正点②：検体ごとの詳細項目を動的表示 ---
     histology_type = ""
     histology_other = ""
     cyto_res = ""
@@ -131,7 +131,6 @@ with ce1:
 with ce2:
     courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
     
-    # --- 修正点①：コース数が2以下の場合のみ理由欄を表示 ---
     courses_reason = ""
     if courses is not None and courses <= 2:
         courses_reason = st.text_input("2コース以下の場合：理由*")
@@ -190,7 +189,9 @@ with cx1:
 with cx2:
     other_cancer = st.radio("活動性の重複がん*", ["なし", "あり（不適）"], index=None, horizontal=True, help="病勢が制御され予後評価に影響しないと判断される悪性腫瘍（筋層非浸潤性膀胱癌、早期前立腺癌、治癒切除済みの皮膚基底細胞癌など）は登録を許容する")
     proxy_consent = st.radio("同意取得の形態（代諾者のみは不適格）*", ["本人同意", "代諾者のみ（不適）"], index=None, horizontal=True)
-    op_type = st.selectbox("予定している手術*", ["選択なし", "根治的腎尿管全摘除術", "尿管部分切除術"])
+    
+    # --- 修正点②：手術の選択肢に「膀胱全摘（不適）」を追加 ---
+    op_type = st.selectbox("予定している手術*", ["選択なし", "根治的腎尿管全摘除術", "尿管部分切除術", "腎尿管膀胱全摘除術（不適）"])
     op_date = st.date_input("手術予定日", value=None)
     
     if evp_start and op_date:
@@ -206,7 +207,6 @@ if st.button("適格性を判定する", type="primary", use_container_width=Tru
         
     if not reporter_email: missing.append("担当者メールアドレス")
     
-    # 新たに追加したバリデーション（入力漏れチェック）
     if not diag_type: missing.append("診断根拠となった検体")
     if "組織診" in diag_type:
         if histology_type == "選択してください": missing.append("組織型")
@@ -231,6 +231,9 @@ if st.button("適格性を判定する", type="primary", use_container_width=Tru
         if ae == "あり（不適）": reasons.append("除外基準：Grade 3以上の未回復有害事象")
         if other_cancer == "あり（不適）": reasons.append("除外基準：活動性の重複がん")
         if proxy_consent == "代諾者のみ（不適）": reasons.append("除外基準：本人同意が得られていない（代諾者のみ）")
+        
+        # --- 修正点③：膀胱全摘を選んだ場合の不適格ロジックを追加 ---
+        if op_type == "腎尿管膀胱全摘除術（不適）": reasons.append("除外基準：予定手術が腎尿管膀胱全摘除術のため")
         
         res_final = "【適格】" if not reasons else "【不適格】"
         reason_text = "\n".join([f"・{r}" for r in reasons]) if reasons else "なし"
@@ -257,7 +260,6 @@ ECOG PS: {ps}
 初回診断日: {diag_date}
 診断根拠: {', '.join(diag_type) if diag_type else ''}
 """
-        # レポート用文字列への追加
         if "組織診" in diag_type:
             report += f"  - 組織型: {histology_type}" + (f" ({histology_other})" if histology_type == "Other" else "") + "\n"
         if "細胞診" in diag_type:
@@ -294,7 +296,9 @@ RECIST判定: {res_recist} (SLD変化率: {sld_chg:.1f}%)
                 for w in warnings_list: st.warning(f"⚠️ 確認事項: {w}")
                 st.info("💡 確認事項がありますが、送信は可能です。内容をご確認の上、下のボタンから送信してください。")
         else: 
-            st.error("登録対象外です。"); [st.write(f"❌ {r}") for r in reasons]
+            st.error("登録対象外です。")
+            for r in reasons:
+                st.markdown(f"❌ {r}")
         
         c_dl1, c_dl2 = st.columns(2)
         with c_dl1: st.download_button("📄 印刷用レポート(HTML)保存", f"<html><body><h3>JUOG レポート</h3><pre>{report}</pre></body></html>", file_name="Report.html", mime="text/html")
