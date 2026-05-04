@@ -74,6 +74,22 @@ c3, c4 = st.columns(2)
 with c3:
     diag_date = st.date_input("初回診断日*", value=None)
     diag_type = st.multiselect("診断根拠となった検体*", ["組織診", "細胞診"])
+    
+    # --- 修正点②：検体ごとの詳細項目を動的表示 ---
+    histology_type = ""
+    histology_other = ""
+    cyto_res = ""
+    
+    if "組織診" in diag_type:
+        h_opts = ["選択してください", "Urothelial carcinoma", "Squamous cell carcinoma", "Adenocarcinoma", "評価不能", "Other"]
+        histology_type = st.selectbox("組織型*", h_opts)
+        if histology_type == "Other":
+            histology_other = st.text_input("詳細(Other)*")
+            
+    if "細胞診" in diag_type:
+        cyto_opts = ["選択してください", "Negative (クラスI・II)", "AUC (非定型細胞)", "SHGUC (高異型度癌疑い)", "HGUC (クラスIV・V相当)", "LGUC (低異型度腫瘍)", "判定不能", "未実施"]
+        cyto_res = st.selectbox("尿細胞診結果*", cyto_opts)
+    
     primary_site = st.radio("原発巣 部位*", ["腎盂", "尿管", "腎盂・尿管（両方）"], index=None, horizontal=True)
     primary_size_pre = st.number_input("診断時_最大径 (mm)*", format="%.1f", value=None, help=RECIST_HELP)
 with c4:
@@ -114,7 +130,12 @@ with ce1:
     if pembro_stop == "あり": pembro_stop_det = st.text_area("中止の詳細", placeholder="例：Grade 3のirAE腸炎（下痢）のため、3コース目でPembro投与を中止")
 with ce2:
     courses = st.number_input("EVP 総投与コース数*", min_value=0, value=None)
-    courses_reason = st.text_input("3コース未満の場合：理由")
+    
+    # --- 修正点①：コース数が2以下の場合のみ理由欄を表示 ---
+    courses_reason = ""
+    if courses is not None and courses <= 2:
+        courses_reason = st.text_input("2コース以下の場合：理由*")
+        
     best_effect = st.selectbox("EVP 最良総合効果*", ["選択してください", "CR", "PR", "SD", "PD"])
     eval_date = st.date_input("病勢制御確認日 (SDの場合は画像初回日)*", value=None)
     
@@ -184,6 +205,16 @@ if st.button("適格性を判定する", type="primary", use_container_width=Tru
         missing.append("必須項目の未入力")
         
     if not reporter_email: missing.append("担当者メールアドレス")
+    
+    # 新たに追加したバリデーション（入力漏れチェック）
+    if not diag_type: missing.append("診断根拠となった検体")
+    if "組織診" in diag_type:
+        if histology_type == "選択してください": missing.append("組織型")
+        if histology_type == "Other" and not histology_other: missing.append("組織型の詳細(Other)")
+    if "細胞診" in diag_type:
+        if cyto_res == "選択してください": missing.append("尿細胞診結果")
+    if courses is not None and courses <= 2 and not courses_reason: missing.append("2コース以下の理由")
+
     if cm == "cM1" and s1 == "選択してください": missing.append("転移巣部位①の選択")
     
     if missing: st.error(f"入力漏れがあります: {', '.join(missing)}")
@@ -225,7 +256,14 @@ if st.button("適格性を判定する", type="primary", use_container_width=Tru
 ECOG PS: {ps}
 初回診断日: {diag_date}
 診断根拠: {', '.join(diag_type) if diag_type else ''}
-原発巣 部位: {primary_site}
+"""
+        # レポート用文字列への追加
+        if "組織診" in diag_type:
+            report += f"  - 組織型: {histology_type}" + (f" ({histology_other})" if histology_type == "Other" else "") + "\n"
+        if "細胞診" in diag_type:
+            report += f"  - 細胞診: {cyto_res}\n"
+
+        report += f"""原発巣 部位: {primary_site}
 診断時_最大径: {disp_primary_pre}
 診断時_cT: {ct}
 診断時_cN: {cn}
@@ -238,7 +276,10 @@ EVP初回/最終: {evp_start} / {evp_end}
 EV初回量: {ev_dose} mg/kg
 EV減量: {reduction} ({red_det})
 Pembro中止: {pembro_stop} ({pembro_stop_det})
-コース数: {courses} ({courses_reason})
+コース数: {courses}"""
+        if courses is not None and courses <= 2:
+            report += f" (理由: {courses_reason})"
+        report += f"""
 最良効果: {best_effect}
 病勢制御確認日: {eval_date}
 RECIST判定: {res_recist} (SLD変化率: {sld_chg:.1f}%)
@@ -253,10 +294,7 @@ RECIST判定: {res_recist} (SLD変化率: {sld_chg:.1f}%)
                 for w in warnings_list: st.warning(f"⚠️ 確認事項: {w}")
                 st.info("💡 確認事項がありますが、送信は可能です。内容をご確認の上、下のボタンから送信してください。")
         else: 
-            st.error("登録対象外です。")
-            # --- 修正点：謎の[0:NULL]が出ないようにループ処理を修正 ---
-            for r in reasons:
-                st.markdown(f"❌ {r}")
+            st.error("登録対象外です。"); [st.write(f"❌ {r}") for r in reasons]
         
         c_dl1, c_dl2 = st.columns(2)
         with c_dl1: st.download_button("📄 印刷用レポート(HTML)保存", f"<html><body><h3>JUOG レポート</h3><pre>{report}</pre></body></html>", file_name="Report.html", mime="text/html")
