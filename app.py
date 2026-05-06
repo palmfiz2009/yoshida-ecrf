@@ -202,8 +202,16 @@ with cx2:
 # --- 判定ロジック ---
 if st.button("適格性を判定する", type="primary", use_container_width=True):
     missing = []
-    if any(v is None for v in [age, gender, height, weight, consent_date, diag_date, evp_start, eval_date, pembro_stop]): 
-        missing.append("必須項目の未入力")
+    # --- 変更箇所：ここでひとまとめになっていたものを分解しました ---
+    if age is None: missing.append("同意取得時の年齢")
+    if gender is None: missing.append("性別")
+    if height is None: missing.append("身長")
+    if weight is None: missing.append("体重")
+    if consent_date is None: missing.append("本人同意取得日")
+    if diag_date is None: missing.append("初回診断日")
+    if evp_start is None: missing.append("EVP 初回投与日")
+    if eval_date is None: missing.append("病勢制御確認日")
+    if pembro_stop is None: missing.append("irAEによるPembro中止の有無")
         
     if not reporter_email: missing.append("担当者メールアドレス")
     
